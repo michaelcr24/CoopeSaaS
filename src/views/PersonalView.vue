@@ -871,16 +871,17 @@
           <template v-if="modal.type === 'vacacion'">
             <h3 class="modal-title">Solicitud de vacaciones</h3>
             <p class="modal-subtitle">Ingresa el período de vacaciones solicitado</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
+            <form class="modal-form" @submit.prevent="enviarVacacion">
               <div class="form-field">
                 <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
+                <select v-model="vacacionForm.empleadoId" required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><input type="date" required /></div>
-                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><input type="date" required /></div>
+                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><input v-model="vacacionForm.inicio" type="date" required /></div>
+                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><input v-model="vacacionForm.fin" type="date" required /></div>
               </div>
-              <div class="form-field"><label>Observaciones</label><textarea rows="3" placeholder="Motivo o notas adicionales..."></textarea></div>
+              <div class="form-field"><label>Observaciones</label><textarea v-model="vacacionForm.motivo" rows="3" placeholder="Motivo o notas adicionales..."></textarea></div>
+              <div v-if="solicitudError" class="req" style="font-size:12.5px;">{{ solicitudError }}</div>
               <div class="modal-actions">
                 <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
                 <button type="submit" class="btn-primary">Enviar solicitud</button>
@@ -892,15 +893,15 @@
           <template v-if="modal.type === 'permiso'">
             <h3 class="modal-title">Solicitud de permiso</h3>
             <p class="modal-subtitle">Registra el tipo de permiso solicitado</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
+            <form class="modal-form" @submit.prevent="enviarPermiso">
               <div class="form-field">
                 <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
+                <select v-model="permisoForm.empleadoId" required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>
               </div>
               <div class="form-row">
                 <div class="form-field">
                   <label>Tipo de permiso <span class="req">*</span></label>
-                  <select required>
+                  <select v-model="permisoForm.tipo" required>
                     <option value="">Seleccionar</option>
                     <option>Con goce salarial</option>
                     <option>Sin goce salarial</option>
@@ -912,13 +913,14 @@
                     <option>Otro</option>
                   </select>
                 </div>
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><input type="date" required /></div>
+                <div class="form-field"><label>Fecha <span class="req">*</span></label><input v-model="permisoForm.fecha" type="date" required /></div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Horas <span class="req">*</span></label><input type="number" min="1" max="8" placeholder="4" required /></div>
+                <div class="form-field"><label>Horas <span class="req">*</span></label><input v-model="permisoForm.horas" type="number" min="1" max="8" placeholder="4" required /></div>
                 <div class="form-field"><label>Evidencia (opcional)</label><input type="file" /></div>
               </div>
-              <div class="form-field"><label>Motivo</label><textarea rows="2" placeholder="Descripción del motivo..."></textarea></div>
+              <div class="form-field"><label>Motivo</label><textarea v-model="permisoForm.motivo" rows="2" placeholder="Descripción del motivo..."></textarea></div>
+              <div v-if="solicitudError" class="req" style="font-size:12.5px;">{{ solicitudError }}</div>
               <div class="modal-actions">
                 <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
                 <button type="submit" class="btn-primary">Enviar solicitud</button>
@@ -1074,15 +1076,15 @@
           <template v-if="modal.type === 'capacitacion'">
             <h3 class="modal-title">Nueva capacitación</h3>
             <p class="modal-subtitle">Registra una capacitación para el plan de formación</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
+            <form class="modal-form" @submit.prevent="guardarCapacitacion">
               <div class="form-field form-field--full">
                 <label>Nombre / Tema <span class="req">*</span></label>
-                <input type="text" placeholder="Ej: Excel avanzado para finanzas" required />
+                <input v-model="capacitacionForm.nombre" type="text" placeholder="Ej: Excel avanzado para finanzas" required />
               </div>
               <div class="form-row">
                 <div class="form-field">
                   <label>Categoría <span class="req">*</span></label>
-                  <select required>
+                  <select v-model="capacitacionForm.categoria" required>
                     <option value="">Seleccionar</option>
                     <option>Tecnología</option>
                     <option>Finanzas</option>
@@ -1094,7 +1096,7 @@
                 </div>
                 <div class="form-field">
                   <label>Modalidad <span class="req">*</span></label>
-                  <select required>
+                  <select v-model="capacitacionForm.modalidad" required>
                     <option value="">Seleccionar</option>
                     <option>Presencial</option>
                     <option>Virtual</option>
@@ -1103,14 +1105,14 @@
                 </div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><input type="date" required /></div>
-                <div class="form-field"><label>Duración (horas) <span class="req">*</span></label><input type="number" min="1" placeholder="8" required /></div>
+                <div class="form-field"><label>Fecha <span class="req">*</span></label><input v-model="capacitacionForm.fecha" type="date" required /></div>
+                <div class="form-field"><label>Duración (horas) <span class="req">*</span></label><input v-model="capacitacionForm.horas" type="number" min="1" placeholder="8" required /></div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Instructor / Proveedor</label><input type="text" placeholder="Nombre del facilitador o empresa" /></div>
+                <div class="form-field"><label>Instructor / Proveedor</label><input v-model="capacitacionForm.instructor" type="text" placeholder="Nombre del facilitador o empresa" /></div>
                 <div class="form-field">
                   <label>Estado</label>
-                  <select>
+                  <select v-model="capacitacionForm.estado">
                     <option>Programada</option>
                     <option>En curso</option>
                     <option>Finalizada</option>
@@ -1128,6 +1130,7 @@
               </div>
               <div class="form-field"><label>Descripción</label><textarea rows="3" placeholder="Objetivos, contenido o notas sobre la capacitación..."></textarea></div>
               <div class="form-field"><label>Materiales / Adjunto</label><input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" /></div>
+              <div v-if="capacitacionError" class="req" style="font-size:12.5px;">{{ capacitacionError }}</div>
               <div class="modal-actions">
                 <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
                 <button type="submit" class="btn-primary">Guardar capacitación</button>
@@ -1205,8 +1208,17 @@
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import { exportCSV, exportPDF } from '../composables/useExport.js'
 import { useRole } from '../composables/useRole.js'
+import { useAuth } from '../composables/useAuth.js'
+import { usePersonal } from '../composables/usePersonal.js'
+import { isSupabaseConfigured } from '../lib/supabase.js'
 
 const { isAdmin, isOperador } = useRole()
+const { cooperativaId } = useAuth()
+const {
+  listDepartamentos, listCargos, listEmpleados, createEmpleado, updateEmpleado,
+  findOrCreateDepartamento, findOrCreateCargo,
+  listPermisos, crearPermiso, resolverPermiso, listCapacitaciones, crearCapacitacion,
+} = usePersonal()
 
 const ANA_ID = 3
 
@@ -1268,13 +1280,39 @@ function openModal(type, data = null) {
   modal.open = true
 }
 
-function guardarEmpleado() {
+const empFormError = ref(null)
+const empFormSaving = ref(false)
+
+async function guardarEmpleado() {
   const activo = empForm.activo === 'true'
-  if (modal.type === 'editar' && modal.data) {
-    const emp = employees.value.find(e => e.id === modal.data.id)
-    if (emp) {
-      Object.assign(emp, {
+
+  if (!isSupabaseConfigured()) {
+    if (modal.type === 'editar' && modal.data) {
+      const emp = employees.value.find(e => e.id === modal.data.id)
+      if (emp) {
+        Object.assign(emp, {
+          name: empForm.nombre,
+          identificacion: empForm.identificacion,
+          fechaNacimiento: empForm.fechaNacimiento,
+          genero: empForm.genero,
+          telefono: empForm.telefono,
+          correo: empForm.correo,
+          direccion: empForm.direccion,
+          role: empForm.puesto,
+          dept: empForm.departamento,
+          date: inputDateToDdmmyyyy(empForm.fechaIngreso) || emp.date,
+          tipoContrato: empForm.tipoContrato,
+          salario: empForm.salario,
+          active: activo,
+          initials: initialsFromName(empForm.nombre),
+        })
+      }
+    } else {
+      employees.value.push({
+        id: Math.max(0, ...employees.value.map(e => e.id)) + 1,
         name: empForm.nombre,
+        initials: initialsFromName(empForm.nombre),
+        color: AVATAR_COLORS[employees.value.length % AVATAR_COLORS.length],
         identificacion: empForm.identificacion,
         fechaNacimiento: empForm.fechaNacimiento,
         genero: empForm.genero,
@@ -1283,37 +1321,47 @@ function guardarEmpleado() {
         direccion: empForm.direccion,
         role: empForm.puesto,
         dept: empForm.departamento,
-        date: inputDateToDdmmyyyy(empForm.fechaIngreso) || emp.date,
+        date: inputDateToDdmmyyyy(empForm.fechaIngreso) || '—',
         tipoContrato: empForm.tipoContrato,
         salario: empForm.salario,
         active: activo,
-        initials: initialsFromName(empForm.nombre),
       })
     }
-  } else {
-    employees.value.push({
-      id: Math.max(0, ...employees.value.map(e => e.id)) + 1,
-      name: empForm.nombre,
-      initials: initialsFromName(empForm.nombre),
-      color: AVATAR_COLORS[employees.value.length % AVATAR_COLORS.length],
-      identificacion: empForm.identificacion,
-      fechaNacimiento: empForm.fechaNacimiento,
-      genero: empForm.genero,
-      telefono: empForm.telefono,
-      correo: empForm.correo,
-      direccion: empForm.direccion,
-      role: empForm.puesto,
-      dept: empForm.departamento,
-      date: inputDateToDdmmyyyy(empForm.fechaIngreso) || '—',
-      tipoContrato: empForm.tipoContrato,
-      salario: empForm.salario,
-      active: activo,
-    })
+    modal.open = false
+    return
   }
+
+  empFormSaving.value = true
+  empFormError.value = null
+
+  const { data: depto, error: deptoErr } = await findOrCreateDepartamento(cooperativaId.value, empForm.departamento)
+  if (deptoErr) { empFormSaving.value = false; empFormError.value = deptoErr.message; return }
+  const { data: cargo, error: cargoErr } = await findOrCreateCargo(cooperativaId.value, empForm.puesto, depto?.id)
+  if (cargoErr) { empFormSaving.value = false; empFormError.value = cargoErr.message; return }
+
+  const payload = { ...empForm, cargoId: cargo?.id, departamentoId: depto?.id, activo }
+  const { error } = modal.type === 'editar' && modal.data
+    ? await updateEmpleado(modal.data.id, payload)
+    : await createEmpleado(cooperativaId.value, payload)
+
+  empFormSaving.value = false
+  if (error) { empFormError.value = error.message; return }
+
+  await loadEmpleados()
   modal.open = false
 }
 
-onMounted(() => {
+const empleadosLoadError = ref(null)
+
+async function loadEmpleados() {
+  if (!isSupabaseConfigured()) return
+  const { data, error } = await listEmpleados()
+  if (error) { empleadosLoadError.value = error.message; return }
+  employees.value = data || []
+}
+
+onMounted(async () => {
+  await loadEmpleados()
   if (isOperador.value) {
     selectedEmp.value = employees.value.find(e => e.id === ANA_ID) ?? null
     activeTab.value = 'expedientes'
@@ -1344,18 +1392,32 @@ const tabs = [
 ]
 
 /* ── Indicadores ────────────────────────── */
-const indicators = [
-  { key: 'total',       label: 'Total colaboradores',     value: 32,  bg: 'rgba(19,60,101,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#133C65" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
-  { key: 'activos',     label: 'Activos',                 value: 28,  bg: 'rgba(26,145,82,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A9152" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
-  { key: 'inactivos',   label: 'Inactivos',               value: 4,   bg: 'rgba(112,113,115,0.1)', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#707173" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>` },
-  { key: 'vacpend',     label: 'Vac. pendientes',         value: 12,  bg: 'rgba(21,101,192,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1565C0" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
-  { key: 'vacsol',      label: 'Sol. vac. pendientes',    value: 5,   bg: 'rgba(232,163,28,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C47F0C" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` },
-  { key: 'permpend',    label: 'Permisos pendientes',     value: 3,   bg: 'rgba(123,63,160,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B3FA0" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` },
-  { key: 'capac',       label: 'Capacitaciones progr.',   value: 4,   bg: 'rgba(0,128,140,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00808C" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>` },
-  { key: 'evalp',       label: 'Evaluaciones pend.',      value: 6,   bg: 'rgba(192,57,43,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C0392B" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>` },
-  { key: 'contratos',   label: 'Contratos próx. vencer',  value: 2,   bg: 'rgba(211,47,47,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D32F2F" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>` },
-  { key: 'cumple',      label: 'Cumpleaños del mes',      value: 3,   bg: 'rgba(236,64,122,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EC407A" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` },
+const INDICATOR_META = [
+  { key: 'total',       label: 'Total colaboradores',     bg: 'rgba(19,60,101,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#133C65" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
+  { key: 'activos',     label: 'Activos',                 bg: 'rgba(26,145,82,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A9152" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
+  { key: 'inactivos',   label: 'Inactivos',               bg: 'rgba(112,113,115,0.1)', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#707173" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>` },
+  { key: 'vacpend',     label: 'Vac. pendientes',         bg: 'rgba(21,101,192,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1565C0" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
+  { key: 'permpend',    label: 'Permisos pendientes',     bg: 'rgba(123,63,160,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B3FA0" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` },
+  { key: 'capac',       label: 'Capacitaciones progr.',   bg: 'rgba(0,128,140,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00808C" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>` },
+  { key: 'cumple',      label: 'Cumpleaños del mes',      bg: 'rgba(236,64,122,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EC407A" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` },
 ]
+// evalp/contratos: sin modelo de datos todavia (evaluaciones de desempeño,
+// fecha de vencimiento de contrato); se omiten en vez de mostrar cifras falsas.
+
+const indicatorValues = computed(() => {
+  const mesActual = new Date().getMonth() + 1
+  return {
+    total: employees.value.length,
+    activos: employees.value.filter(e => e.active).length,
+    inactivos: employees.value.filter(e => !e.active).length,
+    vacpend: vacaciones.value.filter(v => v.status === 'Pendiente').length,
+    permpend: permisos.value.filter(p => p.status === 'Pendiente').length,
+    capac: capacitaciones.value.filter(c => c.status === 'Programada').length,
+    cumple: employees.value.filter(e => e.fechaNacimiento && Number(e.fechaNacimiento.slice(5, 7)) === mesActual).length,
+  }
+})
+
+const indicators = computed(() => INDICATOR_META.map(m => ({ ...m, value: indicatorValues.value[m.key] ?? 0 })))
 
 const visibleEmployees = computed(() =>
   isOperador.value ? employees.value.filter(e => e.id === ANA_ID) : employees.value
@@ -1371,13 +1433,14 @@ const visibleTabs = computed(() => {
 })
 
 /* ── Empleados ──────────────────────────── */
-const employees = ref([
+const DEMO_EMPLOYEES = [
   { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', role: 'Gerente General',    dept: 'Administración', date: '01/03/2018', active: true },
   { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', role: 'Contador',           dept: 'Finanzas',       date: '15/07/2019', active: true },
   { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', role: 'Asistente Admin.',   dept: 'Administración', date: '20/01/2021', active: true },
   { id: 4, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', role: 'Operador de Caja',   dept: 'Operaciones',    date: '10/05/2020', active: false },
   { id: 5, name: 'Patricia Mora',   initials: 'PM', color: '#C0392B', role: 'Oficial de Crédito', dept: 'Operaciones',    date: '03/09/2022', active: true },
-])
+]
+const employees = ref(isSupabaseConfigured() ? [] : DEMO_EMPLOYEES)
 
 const filteredEmployees = computed(() =>
   employees.value.filter(e => {
@@ -1389,18 +1452,61 @@ const filteredEmployees = computed(() =>
 )
 
 /* ── Vacaciones mock ────────────────────── */
-const vacaciones = [
+const DEMO_VACACIONES = [
   { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', inicio: '23/06/2026', fin: '04/07/2026', dias: 10, status: 'Pendiente', statusClass: 'yellow' },
   { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', inicio: '07/07/2026', fin: '11/07/2026', dias: 5,  status: 'Aprobada',  statusClass: 'green' },
   { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', inicio: '14/07/2026', fin: '17/07/2026', dias: 4,  status: 'Pendiente', statusClass: 'yellow' },
 ]
+const vacaciones = ref(isSupabaseConfigured() ? [] : DEMO_VACACIONES)
 
 /* ── Permisos mock ──────────────────────── */
-const permisos = [
+const DEMO_PERMISOS = [
   { id: 1, name: 'Patricia Mora', initials: 'PM', color: '#C0392B', tipo: 'Cita médica',        fecha: '16/06/2026', horas: 4, status: 'Pendiente', statusClass: 'yellow' },
   { id: 2, name: 'Luis Jiménez',  initials: 'LJ', color: '#C47F0C', tipo: 'Con goce salarial',  fecha: '17/06/2026', horas: 8, status: 'Aprobado',  statusClass: 'green' },
   { id: 3, name: 'Ana Vargas',    initials: 'AV', color: '#7B3FA0', tipo: 'Estudio',            fecha: '20/06/2026', horas: 3, status: 'Pendiente', statusClass: 'yellow' },
 ]
+const permisos = ref(isSupabaseConfigured() ? [] : DEMO_PERMISOS)
+
+async function loadVacacionesYPermisos() {
+  if (!isSupabaseConfigured()) return
+  const [{ data: vacs }, { data: perms }] = await Promise.all([
+    listPermisos({ vacaciones: true }),
+    listPermisos({ vacaciones: false }),
+  ])
+  vacaciones.value = (vacs || []).map(p => ({ id: p.id, name: p.name, initials: p.initials, color: p.color, inicio: p.fecha, fin: p.fecha, dias: p.horas, status: p.status, statusClass: p.statusClass }))
+  permisos.value = perms || []
+}
+onMounted(loadVacacionesYPermisos)
+
+/* ── Nueva solicitud de vacaciones/permiso ── */
+const vacacionForm = reactive({ empleadoId: '', inicio: '', fin: '', motivo: '' })
+const permisoForm = reactive({ empleadoId: '', tipo: '', fecha: '', horas: 8, motivo: '' })
+const solicitudError = ref(null)
+
+async function enviarVacacion() {
+  if (!isSupabaseConfigured()) { modal.open = false; return }
+  if (!vacacionForm.empleadoId || !vacacionForm.inicio || !vacacionForm.fin) return
+  solicitudError.value = null
+  const dias = Math.max(1, Math.round((new Date(vacacionForm.fin) - new Date(vacacionForm.inicio)) / 86400000) + 1)
+  const { error } = await crearPermiso(cooperativaId.value, {
+    empleadoId: vacacionForm.empleadoId, tipo: 'Vacaciones', fecha: vacacionForm.inicio, horas: dias * 8, motivo: vacacionForm.motivo,
+  })
+  if (error) { solicitudError.value = error.message; return }
+  Object.assign(vacacionForm, { empleadoId: '', inicio: '', fin: '', motivo: '' })
+  await loadVacacionesYPermisos()
+  modal.open = false
+}
+
+async function enviarPermiso() {
+  if (!isSupabaseConfigured()) { modal.open = false; return }
+  if (!permisoForm.empleadoId || !permisoForm.tipo || !permisoForm.fecha) return
+  solicitudError.value = null
+  const { error } = await crearPermiso(cooperativaId.value, permisoForm)
+  if (error) { solicitudError.value = error.message; return }
+  Object.assign(permisoForm, { empleadoId: '', tipo: '', fecha: '', horas: 8, motivo: '' })
+  await loadVacacionesYPermisos()
+  modal.open = false
+}
 
 /* ── Documentos mock ────────────────────── */
 const docGrupos = [
@@ -1454,13 +1560,35 @@ const incapacidades = [
 ]
 
 /* ── Capacitaciones mock ────────────────── */
-const capacitaciones = [
+const DEMO_CAPACITACIONES = [
   { id: 1, nombre: 'Excel avanzado para finanzas', depto: 'Finanzas', categoria: 'Tecnología',  modalidad: 'Virtual',     modalidadClass: 'virtual',     fecha: '05/05/2026', horas: 16, instructor: 'TechPro CR',     asistentes: 8,  status: 'Finalizada',  statusClass: 'green' },
   { id: 2, nombre: 'Atención al asociado',         depto: 'Operaciones', categoria: 'Servicio', modalidad: 'Presencial',   modalidadClass: 'presencial',  fecha: '12/05/2026', horas: 8,  instructor: 'Laura Soto',     asistentes: 14, status: 'Finalizada',  statusClass: 'green' },
   { id: 3, nombre: 'Normativa SUGEF actualizada',  depto: 'Todos',       categoria: 'Normativa',modalidad: 'Virtual',     modalidadClass: 'virtual',     fecha: '20/06/2026', horas: 4,  instructor: 'SUGEF',          asistentes: 28, status: 'Programada',  statusClass: 'blue' },
   { id: 4, nombre: 'Liderazgo y trabajo en equipo',depto: 'Admin.',      categoria: 'Liderazgo',modalidad: 'Mixta',       modalidadClass: 'mixta',       fecha: '10/07/2026', horas: 12, instructor: 'Consultores SA', asistentes: 6,  status: 'Programada',  statusClass: 'blue' },
   { id: 5, nombre: 'Prevención de riesgos',        depto: 'Todos',       categoria: 'Normativa',modalidad: 'Presencial',  modalidadClass: 'presencial',  fecha: '15/03/2026', horas: 6,  instructor: 'INS',            asistentes: 32, status: 'Finalizada',  statusClass: 'green' },
 ]
+const capacitaciones = ref(isSupabaseConfigured() ? [] : DEMO_CAPACITACIONES)
+
+async function loadCapacitaciones() {
+  if (!isSupabaseConfigured()) return
+  const { data, error } = await listCapacitaciones()
+  if (!error) capacitaciones.value = data || []
+}
+onMounted(loadCapacitaciones)
+
+const capacitacionForm = reactive({ nombre: '', categoria: '', modalidad: '', fecha: '', horas: '', instructor: '', estado: 'Programada' })
+const capacitacionError = ref(null)
+
+async function guardarCapacitacion() {
+  if (!isSupabaseConfigured()) { modal.open = false; return }
+  if (!capacitacionForm.nombre || !capacitacionForm.categoria || !capacitacionForm.modalidad || !capacitacionForm.fecha || !capacitacionForm.horas) return
+  capacitacionError.value = null
+  const { error } = await crearCapacitacion(cooperativaId.value, capacitacionForm)
+  if (error) { capacitacionError.value = error.message; return }
+  Object.assign(capacitacionForm, { nombre: '', categoria: '', modalidad: '', fecha: '', horas: '', instructor: '', estado: 'Programada' })
+  await loadCapacitaciones()
+  modal.open = false
+}
 
 /* ── Evaluaciones mock ──────────────────── */
 const evaluaciones = [
@@ -1472,8 +1600,8 @@ const evaluaciones = [
 ]
 
 /* ── Filtros por rol ─────────────────────── */
-const visibleVacaciones      = computed(() => isOperador.value ? vacaciones.filter(v => v.name === 'Ana Vargas') : vacaciones)
-const visiblePermisos        = computed(() => isOperador.value ? permisos.filter(p => p.name === 'Ana Vargas') : permisos)
+const visibleVacaciones      = computed(() => isOperador.value ? vacaciones.value.filter(v => v.name === 'Ana Vargas') : vacaciones.value)
+const visiblePermisos        = computed(() => isOperador.value ? permisos.value.filter(p => p.name === 'Ana Vargas') : permisos.value)
 const visibleAsistencias     = computed(() => isOperador.value ? asistencias.filter(a => a.name === 'Ana Vargas') : asistencias)
 const visibleIncapacidades   = computed(() => isOperador.value ? incapacidades.filter(i => i.name === 'Ana Vargas') : incapacidades)
 const visibleEvaluaciones    = computed(() => isOperador.value ? evaluaciones.filter(e => e.name === 'Ana Vargas') : evaluaciones)
@@ -1484,7 +1612,7 @@ const visibleDocGrupos       = computed(() => {
     .filter(g => g.docs.length > 0)
 })
 const ANA_CAPS = [2, 3, 5]
-const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.filter(c => ANA_CAPS.includes(c.id)) : capacitaciones)
+const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.value.filter(c => ANA_CAPS.includes(c.id)) : capacitaciones.value)
 </script>
 
 <style scoped>

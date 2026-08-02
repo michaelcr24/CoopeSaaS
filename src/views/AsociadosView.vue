@@ -17,25 +17,27 @@
         </button>
       </div>
 
+      <p v-if="loadError" style="color:#C0392B; font-size:13.5px;">{{ loadError }}</p>
+
       <div class="summary-row">
         <div class="summary-card">
-          <span class="summary-num">248</span>
+          <span class="summary-num">{{ summary.activos }}</span>
           <span class="summary-lbl">Total activos</span>
         </div>
         <div class="summary-card">
-          <span class="summary-num">18</span>
+          <span class="summary-num">{{ summary.nuevosMes }}</span>
           <span class="summary-lbl">Nuevos este mes</span>
         </div>
         <div class="summary-card">
-          <span class="summary-num">5</span>
+          <span class="summary-num">{{ summary.pendientes }}</span>
           <span class="summary-lbl">Pendientes de aprobación</span>
         </div>
         <div class="summary-card">
-          <span class="summary-num">12</span>
+          <span class="summary-num">{{ summary.enMora }}</span>
           <span class="summary-lbl">En mora</span>
         </div>
         <div class="summary-card">
-          <span class="summary-num">₡ 8.2M</span>
+          <span class="summary-num">₡ {{ fmt(summary.capitalTotal) }}</span>
           <span class="summary-lbl">Capital social total</span>
         </div>
       </div>
@@ -701,9 +703,11 @@
 
           </div><!-- /modal-scrollbody -->
 
+          <div v-if="formError" class="ben-total ben-total--warn" style="margin: 0 24px;">{{ formError }}</div>
+
           <div class="modal-footer">
             <button class="btn-outline" @click="closeForm">Cancelar</button>
-            <button class="btn-primary" :disabled="!formData.nombre || !formData.cedula" @click="saveForm">
+            <button class="btn-primary" :disabled="!formData.nombre || !formData.cedula || formSaving" @click="saveForm">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               {{ formModal.mode === 'nuevo' ? 'Registrar asociado' : 'Guardar cambios' }}
             </button>
@@ -719,8 +723,19 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { exportCSV, exportPDF } from '../composables/useExport.js'
 import { useRole } from '../composables/useRole.js'
+import { useAuth } from '../composables/useAuth.js'
+import {
+  useAsociados, initialsOf,
+  CATEGORIA_ENUM, ESTADO_ENUM, GENERO_ENUM, ESTADO_CIVIL_ENUM,
+} from '../composables/useAsociados.js'
+import { isSupabaseConfigured } from '../lib/supabase.js'
 
 const { isAdmin, isAsociado, isConsejo } = useRole()
+const { cooperativaId } = useAuth()
+const {
+  list, getById, create, update, setBeneficiarios,
+  getAsambleasAsistidas, getComitesIntegrados,
+} = useAsociados()
 
 const JUAN_ID = 1
 const ROBERTO_ID = 3
@@ -732,12 +747,28 @@ function fmt(n) {
 
 /* ── Estado ────────────────────────────── */
 const selectedAsociado = ref(null)
+const loadError = ref(null)
 
 watch(isAsociado, (val) => {
+  if (isSupabaseConfigured()) return
   selectedAsociado.value = val ? (asociados.value.find(a => a.id === JUAN_ID) ?? null) : null
 })
 watch(isConsejo, (val) => {
+  if (isSupabaseConfigured()) return
   selectedAsociado.value = val ? (asociados.value.find(a => a.id === ROBERTO_ID) ?? null) : null
+})
+
+// Al seleccionar un asociado con datos reales, completar la pestaña de
+// Participacion (se deriva de Asambleas/Votaciones/Comites, no viene en list())
+watch(selectedAsociado, async (a) => {
+  if (!isSupabaseConfigured() || !a || a._participacionCargada) return
+  const [{ data: asambleasAsistidas }, { data: comitesIntegrados }] = await Promise.all([
+    getAsambleasAsistidas(a.id),
+    getComitesIntegrados(a.id),
+  ])
+  a.asambleasAsistidas = asambleasAsistidas || []
+  a.comitesIntegrados = comitesIntegrados || []
+  a._participacionCargada = true
 })
 const activeTab = ref('expediente')
 const searchQuery = ref('')
@@ -770,8 +801,8 @@ const docCategorias = [
   { key: 'Consentimientos', label: 'Consentimientos' },
 ]
 
-/* ── Mock data ─────────────────────────── */
-const asociados = ref([
+/* ── Mock data (fallback modo demo) ─────── */
+const DEMO_ASOCIADOS = [
   {
     id: 1, name: 'Juan Pérez Mora', initials: 'JP', color: '#133C65',
     cedula: '1-0234-0567', numAsociado: 'A-001', categoria: 'Activo',
@@ -934,14 +965,40 @@ const asociados = ref([
     comitesIntegrados: [],
     representados: [],
   },
-])
+]
 
-// Inicialización sincrónica para roles con vista limitada
-if (isAsociado.value) {
-  selectedAsociado.value = asociados.value.find(a => a.id === JUAN_ID) ?? null
-} else if (isConsejo.value) {
-  selectedAsociado.value = asociados.value.find(a => a.id === ROBERTO_ID) ?? null
+const asociados = ref(isSupabaseConfigured() ? [] : DEMO_ASOCIADOS)
+
+async function loadAsociados() {
+  if (!isSupabaseConfigured()) return
+  const { data, error } = await list()
+  if (error) { loadError.value = error.message; return }
+  asociados.value = data || []
 }
+
+onMounted(loadAsociados)
+
+// Inicialización sincrónica para roles con vista limitada (solo aplica en modo demo)
+if (!isSupabaseConfigured()) {
+  if (isAsociado.value) {
+    selectedAsociado.value = asociados.value.find(a => a.id === JUAN_ID) ?? null
+  } else if (isConsejo.value) {
+    selectedAsociado.value = asociados.value.find(a => a.id === ROBERTO_ID) ?? null
+  }
+}
+
+/* ── Resumen (tarjetas superiores) ───────── */
+const summary = computed(() => {
+  const now = new Date()
+  const mesActual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  return {
+    activos: asociados.value.filter(a => a.statusLabel === 'Activo').length,
+    nuevosMes: asociados.value.filter(a => a.fechaIngresoISO?.startsWith(mesActual)).length,
+    pendientes: asociados.value.filter(a => a.statusLabel === 'Pendiente').length,
+    enMora: asociados.value.filter(a => a.aporteBadge === 'red').length,
+    capitalTotal: asociados.value.reduce((s, a) => s + (a.capitalSocial || 0), 0),
+  }
+})
 
 /* ── Filtros lista ──────────────────────── */
 const filteredAsociados = computed(() => {
@@ -998,57 +1055,76 @@ function openForm(mode) {
   formModal.open = true
 }
 
-function closeForm() { formModal.open = false }
+function closeForm() { formModal.open = false; formError.value = null }
 
 function addBeneficiario() {
   formData.beneficiarios.push({ nombre: '', relacion: '', porcentaje: '' })
 }
 
-function saveForm() {
+const formError = ref(null)
+const formSaving = ref(false)
+
+async function saveForm() {
   if (!formData.nombre || !formData.cedula) return
-  if (formModal.mode === 'editar' && selectedAsociado.value) {
-    const a = selectedAsociado.value
-    a.name = formData.nombre
-    a.initials = formData.nombre.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-    a.cedula = formData.cedula
-    a.numAsociado = formData.numAsociado
-    a.fechaNac = formData.fechaNac
-    a.genero = formData.genero
-    a.estadoCivil = formData.estadoCivil
-    a.nacionalidad = formData.nacionalidad
-    a.telPrincipal = formData.telPrincipal
-    a.telSecundario = formData.telSecundario
-    a.email = formData.email
-    a.direccion = formData.direccion
-    a.categoria = formData.categoria
-    a.fechaIngreso = formData.fechaIngreso
-    a.aporteMensual = Number(formData.aporteMensual)
-    a.statusLabel = formData.statusLabel
-    a.status = statusMap[formData.statusLabel] || 'gray'
-    a.beneficiarios = JSON.parse(JSON.stringify(formData.beneficiarios))
-  } else {
-    const initials = formData.nombre.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
-    const palette = ['#133C65', '#1A9152', '#7B3FA0', '#C47F0C', '#00808C', '#C0392B']
-    const color = palette[asociados.value.length % palette.length]
-    const today = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    asociados.value.push({
-      id: Date.now(), name: formData.nombre, initials, color,
-      cedula: formData.cedula, numAsociado: formData.numAsociado,
-      categoria: formData.categoria, capitalSocial: 0,
-      aporteMensual: Number(formData.aporteMensual), aporteBadge: 'green',
-      fechaIngreso: formData.fechaIngreso || today,
-      status: statusMap[formData.statusLabel] || 'yellow',
-      statusLabel: formData.statusLabel,
-      fechaNac: formData.fechaNac, genero: formData.genero,
-      estadoCivil: formData.estadoCivil, nacionalidad: formData.nacionalidad,
-      telPrincipal: formData.telPrincipal, telSecundario: formData.telSecundario,
-      email: formData.email, direccion: formData.direccion,
-      beneficiarios: JSON.parse(JSON.stringify(formData.beneficiarios)),
-      solicitudes: [{ tipo: 'Afiliación', desc: 'Solicitud inicial de afiliación', fecha: today, responsable: 'Admin', estado: 'Pendiente', estadoClass: 'yellow' }],
-      aportes: [], beneficiosHist: [], documentos: [], comunicaciones: [],
-      asambleasAsistidas: [], comitesIntegrados: [], representados: [],
-    })
+
+  if (!isSupabaseConfigured()) {
+    if (formModal.mode === 'editar' && selectedAsociado.value) {
+      const a = selectedAsociado.value
+      Object.assign(a, {
+        name: formData.nombre,
+        initials: formData.nombre.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase(),
+        cedula: formData.cedula, numAsociado: formData.numAsociado,
+        fechaNac: formData.fechaNac, genero: formData.genero,
+        estadoCivil: formData.estadoCivil, nacionalidad: formData.nacionalidad,
+        telPrincipal: formData.telPrincipal, telSecundario: formData.telSecundario,
+        email: formData.email, direccion: formData.direccion,
+        categoria: formData.categoria, fechaIngreso: formData.fechaIngreso,
+        aporteMensual: Number(formData.aporteMensual), statusLabel: formData.statusLabel,
+        status: statusMap[formData.statusLabel] || 'gray',
+        beneficiarios: JSON.parse(JSON.stringify(formData.beneficiarios)),
+      })
+    } else {
+      const initials = formData.nombre.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+      const palette = ['#133C65', '#1A9152', '#7B3FA0', '#C47F0C', '#00808C', '#C0392B']
+      const color = palette[asociados.value.length % palette.length]
+      const today = new Date().toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      asociados.value.push({
+        id: Date.now(), name: formData.nombre, initials, color,
+        cedula: formData.cedula, numAsociado: formData.numAsociado,
+        categoria: formData.categoria, capitalSocial: 0,
+        aporteMensual: Number(formData.aporteMensual), aporteBadge: 'green',
+        fechaIngreso: formData.fechaIngreso || today,
+        status: statusMap[formData.statusLabel] || 'yellow',
+        statusLabel: formData.statusLabel,
+        fechaNac: formData.fechaNac, genero: formData.genero,
+        estadoCivil: formData.estadoCivil, nacionalidad: formData.nacionalidad,
+        telPrincipal: formData.telPrincipal, telSecundario: formData.telSecundario,
+        email: formData.email, direccion: formData.direccion,
+        beneficiarios: JSON.parse(JSON.stringify(formData.beneficiarios)),
+        solicitudes: [], aportes: [], beneficiosHist: [], documentos: [], comunicaciones: [],
+        asambleasAsistidas: [], comitesIntegrados: [], representados: [],
+      })
+    }
+    closeForm()
+    return
   }
+
+  formSaving.value = true
+  formError.value = null
+  const isEdit = formModal.mode === 'editar' && selectedAsociado.value
+  const { data, error } = isEdit ? await update(selectedAsociado.value.id, formData) : await create(cooperativaId.value, formData)
+  if (error) { formSaving.value = false; formError.value = error.message; return }
+
+  const { error: benErr } = await setBeneficiarios(data.id, formData.beneficiarios)
+  formSaving.value = false
+  if (benErr) { formError.value = benErr.message; return }
+
+  const { data: fresco } = await getById(data.id)
+  if (fresco) {
+    if (isEdit) Object.assign(selectedAsociado.value, fresco)
+    else selectedAsociado.value = fresco
+  }
+  await loadAsociados()
   closeForm()
 }
 
