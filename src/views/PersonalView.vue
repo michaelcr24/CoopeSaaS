@@ -823,41 +823,41 @@
           <template v-if="modal.type === 'nuevo' || modal.type === 'editar'">
             <h3 class="modal-title">{{ modal.type === 'nuevo' ? 'Agregar colaborador' : 'Editar colaborador' }}</h3>
             <p class="modal-subtitle">Información personal y laboral</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
+            <form class="modal-form" @submit.prevent="guardarEmpleado">
               <div class="form-section-title">Datos personales</div>
               <div class="form-row">
-                <div class="form-field"><label>Nombre completo <span class="req">*</span></label><input type="text" placeholder="Ana Vargas Mora" required /></div>
-                <div class="form-field"><label>Identificación <span class="req">*</span></label><input type="text" placeholder="1-2345-6789" required /></div>
+                <div class="form-field"><label>Nombre completo <span class="req">*</span></label><input v-model="empForm.nombre" type="text" placeholder="Ana Vargas Mora" required /></div>
+                <div class="form-field"><label>Identificación <span class="req">*</span></label><input v-model="empForm.identificacion" type="text" placeholder="1-2345-6789" required /></div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha de nacimiento</label><input type="date" /></div>
+                <div class="form-field"><label>Fecha de nacimiento</label><input v-model="empForm.fechaNacimiento" type="date" /></div>
                 <div class="form-field"><label>Género</label>
-                  <select><option>Femenino</option><option>Masculino</option><option>Otro</option></select>
+                  <select v-model="empForm.genero"><option>Femenino</option><option>Masculino</option><option>Otro</option></select>
                 </div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Teléfono</label><input type="tel" placeholder="8888-9999" /></div>
-                <div class="form-field"><label>Correo electrónico</label><input type="email" placeholder="correo@cooperativa.com" /></div>
+                <div class="form-field"><label>Teléfono</label><input v-model="empForm.telefono" type="tel" placeholder="8888-9999" /></div>
+                <div class="form-field"><label>Correo electrónico</label><input v-model="empForm.correo" type="email" placeholder="correo@cooperativa.com" /></div>
               </div>
-              <div class="form-field form-field--full"><label>Dirección</label><input type="text" placeholder="Provincia, Cantón, Distrito" /></div>
+              <div class="form-field form-field--full"><label>Dirección</label><input v-model="empForm.direccion" type="text" placeholder="Provincia, Cantón, Distrito" /></div>
 
               <div class="form-section-title" style="margin-top:18px">Datos laborales</div>
               <div class="form-row">
-                <div class="form-field"><label>Puesto <span class="req">*</span></label><input type="text" placeholder="Gerente, Contador..." required /></div>
+                <div class="form-field"><label>Puesto <span class="req">*</span></label><input v-model="empForm.puesto" type="text" placeholder="Gerente, Contador..." required /></div>
                 <div class="form-field"><label>Departamento <span class="req">*</span></label>
-                  <select required><option value="">Seleccionar</option><option>Administración</option><option>Operaciones</option><option>Finanzas</option></select>
+                  <select v-model="empForm.departamento" required><option value="">Seleccionar</option><option>Administración</option><option>Operaciones</option><option>Finanzas</option></select>
                 </div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha de ingreso</label><input type="date" /></div>
+                <div class="form-field"><label>Fecha de ingreso</label><input v-model="empForm.fechaIngreso" type="date" /></div>
                 <div class="form-field"><label>Tipo de contrato</label>
-                  <select><option>Tiempo completo</option><option>Tiempo parcial</option><option>Por servicios</option></select>
+                  <select v-model="empForm.tipoContrato"><option>Tiempo completo</option><option>Tiempo parcial</option><option>Por servicios</option></select>
                 </div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Salario base (₡)</label><input type="number" placeholder="500000" /></div>
+                <div class="form-field"><label>Salario base (₡)</label><input v-model="empForm.salario" type="number" placeholder="500000" /></div>
                 <div class="form-field"><label>Estado</label>
-                  <select><option value="true">Activo</option><option value="false">Inactivo</option></select>
+                  <select v-model="empForm.activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
                 </div>
               </div>
               <div class="modal-actions">
@@ -1217,10 +1217,100 @@ const filterStatus = ref('')
 const selectedEmp = ref(null)
 
 const modal = reactive({ open: false, type: '', data: null })
+
+function ddmmyyyyToInputDate(d) {
+  if (!d) return ''
+  const [dd, mm, yyyy] = d.split('/')
+  return dd && mm && yyyy ? `${yyyy}-${mm}-${dd}` : ''
+}
+function inputDateToDdmmyyyy(d) {
+  if (!d) return ''
+  const [yyyy, mm, dd] = d.split('-')
+  return dd && mm && yyyy ? `${dd}/${mm}/${yyyy}` : ''
+}
+function initialsFromName(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return (parts[0] || '?').slice(0, 2).toUpperCase()
+}
+const AVATAR_COLORS = ['#133C65', '#1A9152', '#7B3FA0', '#C47F0C', '#C0392B', '#1565C0', '#00808C']
+
+const EMPTY_EMP_FORM = {
+  nombre: '', identificacion: '', fechaNacimiento: '', genero: 'Femenino',
+  telefono: '', correo: '', direccion: '',
+  puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'Tiempo completo',
+  salario: '', activo: 'true',
+}
+const empForm = reactive({ ...EMPTY_EMP_FORM })
+
 function openModal(type, data = null) {
   modal.type = type
   modal.data = data
+  if (type === 'editar' && data) {
+    Object.assign(empForm, {
+      nombre: data.name || '',
+      identificacion: data.identificacion || '',
+      fechaNacimiento: data.fechaNacimiento || '',
+      genero: data.genero || 'Femenino',
+      telefono: data.telefono || '',
+      correo: data.correo || '',
+      direccion: data.direccion || '',
+      puesto: data.role || '',
+      departamento: data.dept || '',
+      fechaIngreso: ddmmyyyyToInputDate(data.date),
+      tipoContrato: data.tipoContrato || 'Tiempo completo',
+      salario: data.salario || '',
+      activo: String(data.active),
+    })
+  } else if (type === 'nuevo') {
+    Object.assign(empForm, EMPTY_EMP_FORM)
+  }
   modal.open = true
+}
+
+function guardarEmpleado() {
+  const activo = empForm.activo === 'true'
+  if (modal.type === 'editar' && modal.data) {
+    const emp = employees.value.find(e => e.id === modal.data.id)
+    if (emp) {
+      Object.assign(emp, {
+        name: empForm.nombre,
+        identificacion: empForm.identificacion,
+        fechaNacimiento: empForm.fechaNacimiento,
+        genero: empForm.genero,
+        telefono: empForm.telefono,
+        correo: empForm.correo,
+        direccion: empForm.direccion,
+        role: empForm.puesto,
+        dept: empForm.departamento,
+        date: inputDateToDdmmyyyy(empForm.fechaIngreso) || emp.date,
+        tipoContrato: empForm.tipoContrato,
+        salario: empForm.salario,
+        active: activo,
+        initials: initialsFromName(empForm.nombre),
+      })
+    }
+  } else {
+    employees.value.push({
+      id: Math.max(0, ...employees.value.map(e => e.id)) + 1,
+      name: empForm.nombre,
+      initials: initialsFromName(empForm.nombre),
+      color: AVATAR_COLORS[employees.value.length % AVATAR_COLORS.length],
+      identificacion: empForm.identificacion,
+      fechaNacimiento: empForm.fechaNacimiento,
+      genero: empForm.genero,
+      telefono: empForm.telefono,
+      correo: empForm.correo,
+      direccion: empForm.direccion,
+      role: empForm.puesto,
+      dept: empForm.departamento,
+      date: inputDateToDdmmyyyy(empForm.fechaIngreso) || '—',
+      tipoContrato: empForm.tipoContrato,
+      salario: empForm.salario,
+      active: activo,
+    })
+  }
+  modal.open = false
 }
 
 onMounted(() => {
