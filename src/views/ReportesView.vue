@@ -498,11 +498,11 @@
             <div class="cform-row">
               <div class="cform-group">
                 <label>Fecha inicio</label>
-                <input type="date" v-model="customForm.fechaInicio" class="filter-select full-width" />
+                <DatePicker v-model="customForm.fechaInicio" input-class="filter-select full-width" />
               </div>
               <div class="cform-group">
                 <label>Fecha fin</label>
-                <input type="date" v-model="customForm.fechaFin" class="filter-select full-width" />
+                <DatePicker v-model="customForm.fechaFin" input-class="filter-select full-width" />
               </div>
             </div>
             <div class="cform-group">
@@ -566,6 +566,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import DatePicker from '../components/DatePicker.vue'
 
 const activeTab = ref('kpis')
 const periodo   = ref('mes')

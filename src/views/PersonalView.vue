@@ -488,9 +488,9 @@
           <option v-for="e in employees" :key="e.id">{{ e.name }}</option>
         </select>
         <div class="date-range">
-          <input type="date" class="filter-select" value="2026-06-01" />
+          <DatePicker model-value="2026-06-01" input-class="filter-select" />
           <span class="date-sep">—</span>
-          <input type="date" class="filter-select" value="2026-06-15" />
+          <DatePicker model-value="2026-06-15" input-class="filter-select" />
         </div>
       </div>
 
@@ -830,7 +830,7 @@
                 <div class="form-field"><label>Identificación <span class="req">*</span></label><input v-model="empForm.identificacion" type="text" placeholder="1-2345-6789" required /></div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha de nacimiento</label><input v-model="empForm.fechaNacimiento" type="date" /></div>
+                <div class="form-field"><label>Fecha de nacimiento</label><DatePicker v-model="empForm.fechaNacimiento" /></div>
                 <div class="form-field"><label>Género</label>
                   <select v-model="empForm.genero"><option>Femenino</option><option>Masculino</option><option>Otro</option></select>
                 </div>
@@ -849,7 +849,7 @@
                 </div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha de ingreso</label><input v-model="empForm.fechaIngreso" type="date" /></div>
+                <div class="form-field"><label>Fecha de ingreso</label><DatePicker v-model="empForm.fechaIngreso" /></div>
                 <div class="form-field"><label>Tipo de contrato</label>
                   <select v-model="empForm.tipoContrato"><option>Tiempo completo</option><option>Tiempo parcial</option><option>Por servicios</option></select>
                 </div>
@@ -877,8 +877,8 @@
                 <select v-model="vacacionForm.empleadoId" required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><input v-model="vacacionForm.inicio" type="date" required /></div>
-                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><input v-model="vacacionForm.fin" type="date" required /></div>
+                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker v-model="vacacionForm.inicio" required /></div>
+                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker v-model="vacacionForm.fin" required /></div>
               </div>
               <div class="form-field"><label>Observaciones</label><textarea v-model="vacacionForm.motivo" rows="3" placeholder="Motivo o notas adicionales..."></textarea></div>
               <div v-if="solicitudError" class="req" style="font-size:12.5px;">{{ solicitudError }}</div>
@@ -913,7 +913,7 @@
                     <option>Otro</option>
                   </select>
                 </div>
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><input v-model="permisoForm.fecha" type="date" required /></div>
+                <div class="form-field"><label>Fecha <span class="req">*</span></label><DatePicker v-model="permisoForm.fecha" required /></div>
               </div>
               <div class="form-row">
                 <div class="form-field"><label>Horas <span class="req">*</span></label><input v-model="permisoForm.horas" type="number" min="1" max="8" placeholder="4" required /></div>
@@ -972,8 +972,8 @@
                 </div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha de emisión</label><input type="date" /></div>
-                <div class="form-field"><label>Fecha de vencimiento <span class="text-muted-sm">(si aplica)</span></label><input type="date" /></div>
+                <div class="form-field"><label>Fecha de emisión</label><DatePicker /></div>
+                <div class="form-field"><label>Fecha de vencimiento <span class="text-muted-sm">(si aplica)</span></label><DatePicker /></div>
               </div>
               <div class="form-field">
                 <label>Archivo <span class="req">*</span></label>
@@ -1001,7 +1001,7 @@
                 <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><input type="date" required /></div>
+                <div class="form-field"><label>Fecha <span class="req">*</span></label><DatePicker required /></div>
                 <div class="form-field">
                   <label>Tipo de registro <span class="req">*</span></label>
                   <select required>
@@ -1043,8 +1043,8 @@
                 <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><input type="date" required /></div>
-                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><input type="date" required /></div>
+                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker required /></div>
+                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker required /></div>
               </div>
               <div class="form-row">
                 <div class="form-field">
@@ -1105,7 +1105,7 @@
                 </div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><input v-model="capacitacionForm.fecha" type="date" required /></div>
+                <div class="form-field"><label>Fecha <span class="req">*</span></label><DatePicker v-model="capacitacionForm.fecha" required /></div>
                 <div class="form-field"><label>Duración (horas) <span class="req">*</span></label><input v-model="capacitacionForm.horas" type="number" min="1" placeholder="8" required /></div>
               </div>
               <div class="form-row">
@@ -1174,7 +1174,7 @@
                   </select>
                 </div>
               </div>
-              <div class="form-field"><label>Fecha programada <span class="req">*</span></label><input type="date" required /></div>
+              <div class="form-field"><label>Fecha programada <span class="req">*</span></label><DatePicker required /></div>
 
               <div class="form-section-title" style="margin-top:4px">Competencias a evaluar</div>
               <div class="eval-competencias">
@@ -1211,6 +1211,7 @@ import { useRole } from '../composables/useRole.js'
 import { useAuth } from '../composables/useAuth.js'
 import { usePersonal } from '../composables/usePersonal.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
+import DatePicker from '../components/DatePicker.vue'
 
 const { isAdmin, isOperador } = useRole()
 const { cooperativaId } = useAuth()

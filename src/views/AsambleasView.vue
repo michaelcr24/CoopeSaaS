@@ -182,7 +182,7 @@
           <div class="form-row">
             <div class="form-field">
               <label>Fecha <span class="req">*</span></label>
-              <input v-model="wizardData.fecha" type="date" />
+              <DatePicker v-model="wizardData.fecha" />
             </div>
             <div class="form-field">
               <label>Hora inicio <span class="req">*</span></label>
@@ -282,11 +282,11 @@
           <div class="form-row">
             <div class="form-field">
               <label>Fecha de publicación <span class="req">*</span></label>
-              <input v-model="wizardData.fechaConvocatoria" type="date" />
+              <DatePicker v-model="wizardData.fechaConvocatoria" />
             </div>
             <div class="form-field">
               <label>Plazo límite de postulaciones <span class="req">*</span></label>
-              <input v-model="wizardData.fechaLimitePostulacion" type="date" />
+              <DatePicker v-model="wizardData.fechaLimitePostulacion" />
             </div>
           </div>
           <div class="form-field form-field--full">
@@ -836,6 +836,7 @@ import { useVotaciones } from '../composables/useVotaciones.js'
 import { useAsociados, initialsOf, colorFor } from '../composables/useAsociados.js'
 import { useGrabacion } from '../composables/useGrabacion.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
+import DatePicker from '../components/DatePicker.vue'
 
 const router = useRouter()
 const { isAdmin, isOperador, isAsociado } = useRole()

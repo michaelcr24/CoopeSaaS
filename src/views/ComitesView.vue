@@ -99,11 +99,11 @@
               <div class="form-row">
                 <div class="form-field">
                   <label>Período inicio <span class="req">*</span></label>
-                  <input type="date" required />
+                  <DatePicker required />
                 </div>
                 <div class="form-field">
                   <label>Período fin</label>
-                  <input type="date" />
+                  <DatePicker />
                 </div>
               </div>
               <div class="form-row">
@@ -313,6 +313,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRole } from '../composables/useRole.js'
+import DatePicker from '../components/DatePicker.vue'
 const { isAdmin, isConsejo } = useRole()
 import { exportCSV, exportPDF } from '../composables/useExport.js'
 

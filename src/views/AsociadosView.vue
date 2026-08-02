@@ -572,7 +572,7 @@
               <div class="frow">
                 <div class="ffield">
                   <label>Fecha de nacimiento</label>
-                  <input v-model="formData.fechaNac" type="date" />
+                  <DatePicker v-model="formData.fechaNac" />
                 </div>
                 <div class="ffield">
                   <label>Género</label>
@@ -644,7 +644,7 @@
                 </div>
                 <div class="ffield">
                   <label>Fecha de ingreso</label>
-                  <input v-model="formData.fechaIngreso" type="date" />
+                  <DatePicker v-model="formData.fechaIngreso" />
                 </div>
               </div>
               <div class="frow">
@@ -729,6 +729,7 @@ import {
   CATEGORIA_ENUM, ESTADO_ENUM, GENERO_ENUM, ESTADO_CIVIL_ENUM,
 } from '../composables/useAsociados.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
+import DatePicker from '../components/DatePicker.vue'
 
 const { isAdmin, isAsociado, isConsejo } = useRole()
 const { cooperativaId } = useAuth()
