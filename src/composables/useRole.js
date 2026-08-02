@@ -1,5 +1,9 @@
 import { ref, computed } from 'vue'
 
+// Selector de rol 100% local/demo (localStorage) para alternar la UI en modo
+// demo. No es una fuente de autorización real: la seguridad efectiva vive en
+// las policies RLS de Supabase (user_role(), is_admin_or_consejo()).
+
 const ROLES = {
   admin: {
     name: 'Administrador',

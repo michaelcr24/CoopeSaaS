@@ -18,6 +18,12 @@
       </button>
     </div>
 
+    <div v-if="missingAsamblea" class="mode-tabs" style="padding-top:0;">
+      <p style="color:#C0392B; font-size:13.5px;">
+        Abre este módulo desde una asamblea concreta (paso "Votaciones" en Asambleas) para gestionar su votación.
+      </p>
+    </div>
+
     <!-- ══════════════════════════════════════════════════════
          VISTA 1: ASISTENCIA (phone)
     ══════════════════════════════════════════════════════ -->
@@ -58,7 +64,7 @@
             :key="att.id"
             class="attendee-row"
             :class="{ present: att.present }"
-            @click="att.present = !att.present"
+            @click="toggleAttendance(att)"
           >
             <div class="att-avatar" :style="{ background: att.color }">{{ att.initials }}</div>
             <div class="att-info">
@@ -68,7 +74,7 @@
             <button
               class="toggle-btn"
               :class="{ on: att.present }"
-              @click.stop="att.present = !att.present"
+              @click.stop="toggleAttendance(att)"
             >
               <span class="toggle-dot"></span>
             </button>
@@ -108,6 +114,7 @@
           <div class="vote-body">
             <div class="vote-election-title">{{ activeElection.title }}</div>
             <p class="vote-instruction">Selecciona un candidato</p>
+            <p v-if="voteError" class="vote-instruction" style="color:#C0392B;">{{ voteError }}</p>
             <div class="candidate-cards">
               <div
                 v-for="cand in activeElection.candidates"
@@ -315,7 +322,7 @@
 
           <!-- Heading -->
           <div class="winner-heading">
-            {{ winnerElection.id === 0 ? 'RESULTADO' : (winnerElection.winnersCount || 1) > 1 ? 'ELEGIDOS' : 'ELEGIDO' }}
+            {{ winnerElection.type === 'referendum' ? 'RESULTADO' : (winnerElection.winnersCount || 1) > 1 ? 'ELEGIDOS' : 'ELEGIDO' }}
           </div>
 
           <!-- Single winner -->
@@ -527,7 +534,28 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuth } from '../composables/useAuth.js'
+import { useAsociados, initialsOf, colorFor } from '../composables/useAsociados.js'
+import { useAsambleas } from '../composables/useAsambleas.js'
+import { useVotaciones } from '../composables/useVotaciones.js'
+import { isSupabaseConfigured } from '../lib/supabase.js'
+
+const route = useRoute()
+const { currentUser } = useAuth()
+const { getByProfileId } = useAsociados()
+const { saveActa: saveActaAsamblea } = useAsambleas()
+const {
+  loadAsamblea, loadAsistencia, toggleAsistencia, markAllAsistencia,
+  ensureVotaciones, loadElecciones,
+  startElection: startElectionApi, finalizarVotacion: finalizarVotacionApi,
+  addOpcion, submitVote: submitVoteApi, subscribeResultados,
+} = useVotaciones()
+
+const asambleaId = computed(() => route.query.asamblea || null)
+const modoReal = computed(() => isSupabaseConfigured() && !!asambleaId.value)
+const missingAsamblea = computed(() => isSupabaseConfigured() && !asambleaId.value)
 
 // ── TABS ─────────────────────────────────────────────────────────
 const tabs = [
@@ -538,15 +566,15 @@ const tabs = [
 ]
 const activeMode = ref('asistencia')
 
-// ── MOCK DATA ─────────────────────────────────────────────────────
-const assembly = {
+// ── DATOS (demo si no hay Supabase configurado o no se seleccionó asamblea) ──
+const DEMO_ASSEMBLY = {
   name: 'Asamblea Ordinaria 2026',
   fecha: '28/06/2026',
   lugar: 'Salón Comunal, Sede Central',
   totalSocios: 248,
 }
 
-const attendees = ref([
+const DEMO_ATTENDEES = [
   { id:1,  name:'Juan Pérez Mora',      initials:'JP',  color:'#133C65', num:'A-001', present:true  },
   { id:2,  name:'Laura Soto Jiménez',   initials:'LS',  color:'#1A9152', num:'A-002', present:true  },
   { id:3,  name:'Roberto Ureña',        initials:'RU',  color:'#C47F0C', num:'A-003', present:false },
@@ -562,11 +590,11 @@ const attendees = ref([
   { id:13, name:'Marcos Salas',         initials:'MS',  color:'#7B3FA0', num:'A-013', present:true  },
   { id:14, name:'Ingrid Quesada',       initials:'IQ',  color:'#C0392B', num:'A-014', present:false },
   { id:15, name:'Rodrigo Blanco',       initials:'RB',  color:'#133C65', num:'A-015', present:true  },
-])
+]
 
-const elections = ref([
+const DEMO_ELECTIONS = [
   {
-    id: 0,
+    id: 0, type: 'referendum',
     title: '¿Se somete a votación la agenda?',
     state: 'waiting',
     winnersCount: 1,
@@ -577,7 +605,7 @@ const elections = ref([
     ]
   },
   {
-    id: 1,
+    id: 1, type: 'eleccion',
     title: '1 Propietario Consejo de Administración',
     state: 'waiting',
     winnersCount: 1,
@@ -589,7 +617,7 @@ const elections = ref([
     ]
   },
   {
-    id: 2,
+    id: 2, type: 'eleccion',
     title: '2 Propietarios Comité de Vigilancia',
     state: 'waiting',
     winnersCount: 2,
@@ -600,7 +628,40 @@ const elections = ref([
       { id:4, name:'Abstención',     color:'#7A90A0', icon:'—', votos:0 },
     ]
   }
-])
+]
+
+const assembly = ref(isSupabaseConfigured() ? { name: '', fecha: '', lugar: '', totalSocios: 0 } : DEMO_ASSEMBLY)
+const attendees = ref(isSupabaseConfigured() ? [] : DEMO_ATTENDEES)
+const elections = ref(isSupabaseConfigured() ? [] : DEMO_ELECTIONS)
+const miAsociadoId = ref(null)
+const loadingDatos = ref(false)
+
+async function cargarTodo() {
+  if (!modoReal.value) return
+  loadingDatos.value = true
+  const [{ data: asambleaData }, { data: asocData }] = await Promise.all([
+    loadAsamblea(asambleaId.value),
+    getByProfileId(currentUser.value?.id),
+  ])
+  if (asambleaData) {
+    assembly.value = asambleaData
+    actaHoraInicio.value = asambleaData.horaInicioReal || ''
+    actaHoraFin.value = asambleaData.horaCierreReal || ''
+    actaNumero.value = asambleaData.numeroActa || ''
+    actaAcuerdos.value = asambleaData.acuerdos || ''
+  }
+  miAsociadoId.value = asocData?.id ?? null
+
+  const { data: asistenciaData } = await loadAsistencia(asambleaId.value)
+  if (asistenciaData) attendees.value = asistenciaData
+
+  await ensureVotaciones(asambleaId.value)
+  const { data: eleccionesData } = await loadElecciones(asambleaId.value)
+  if (eleccionesData) elections.value = eleccionesData
+  loadingDatos.value = false
+}
+
+onMounted(cargarTodo)
 
 // ── ASISTENCIA STATE ─────────────────────────────────────────────
 const searchQuery = ref('')
@@ -612,14 +673,22 @@ const filteredAttendees = computed(() => {
   )
 })
 
-function markAll() {
+async function toggleAttendance(att) {
+  const nuevo = !att.present
+  if (modoReal.value) await toggleAsistencia(att.id, nuevo)
+  att.present = nuevo
+}
+
+async function markAll() {
   const allPresent = attendees.value.every(a => a.present)
-  attendees.value.forEach(a => { a.present = !allPresent })
+  const nuevo = !allPresent
+  if (modoReal.value) await markAllAsistencia(asambleaId.value, nuevo)
+  attendees.value.forEach(a => { a.present = nuevo })
 }
 
 // ── COMPUTED ──────────────────────────────────────────────────────
 const presentCount    = computed(() => attendees.value.filter(a => a.present).length)
-const quorumPercent   = computed(() => Math.round(presentCount.value / assembly.totalSocios * 100 * 10) / 10)
+const quorumPercent   = computed(() => assembly.value.totalSocios ? Math.round(presentCount.value / assembly.value.totalSocios * 100 * 10) / 10 : 0)
 const electionsFinished = computed(() => elections.value.filter(e => e.state === 'finished').length)
 const activeElection  = computed(() => elections.value.find(e => e.state === 'active') ?? null)
 const currentDashboardElection = computed(() => elections.value.find(e => e.state !== 'finished') ?? null)
@@ -627,6 +696,7 @@ const currentDashboardElection = computed(() => elections.value.find(e => e.stat
 // ── VOTACIÓN STATE ────────────────────────────────────────────────
 const userHasVoted      = ref(false)
 const selectedCandidate = ref(null)
+const voteError         = ref(null)
 const showAddCandForm   = ref(false)
 const newCandName       = ref('')
 const newCandPhoto      = ref('')
@@ -643,55 +713,77 @@ const nextElectionAfterWinner = computed(() => {
   return elections.value.slice(idx + 1).find(e => e.state !== 'finished') ?? null
 })
 
-// Reset voting state when active election changes
+// Reset voting state y suscripción en vivo cuando cambia la votación activa
+let unsubscribeResultados = null
 watch(activeElection, (val) => {
+  if (unsubscribeResultados) { unsubscribeResultados(); unsubscribeResultados = null }
   if (!val) {
     userHasVoted.value = false
     selectedCandidate.value = null
+    return
+  }
+  if (modoReal.value) {
+    unsubscribeResultados = subscribeResultados(val.id, async () => {
+      const { data } = await loadElecciones(asambleaId.value)
+      if (data) elections.value = data
+    })
   }
 })
 
-function submitVote() {
+onUnmounted(() => { if (unsubscribeResultados) unsubscribeResultados() })
+
+async function submitVote() {
   if (!selectedCandidate.value || !activeElection.value) return
+  voteError.value = null
+  if (modoReal.value) {
+    if (!miAsociadoId.value) { voteError.value = 'No se encontró tu registro de asociado.'; return }
+    const { error: err } = await submitVoteApi(activeElection.value.id, selectedCandidate.value.id, miAsociadoId.value)
+    if (err) { voteError.value = err.message; return }
+  }
   const cand = activeElection.value.candidates.find(c => c.id === selectedCandidate.value.id)
   if (cand) cand.votos++
   userHasVoted.value = true
 }
 
-function startElection(elec) {
+async function startElection(elec) {
+  if (modoReal.value) {
+    const { error: err } = await startElectionApi(elec.id)
+    if (err) return
+  }
   elec.state = 'active'
   userHasVoted.value = false
   selectedCandidate.value = null
 }
 
-function saveNewCandidate() {
-  if (!newCandName.value.trim() || !newCandPhoto.value) return
+async function saveNewCandidate() {
+  if (!newCandName.value.trim()) return
   const elec = currentDashboardElection.value
   if (!elec) return
-  // Remove Abstención if present, push new candidate, put Abstención back last
-  const absIdx = elec.candidates.findIndex(c => c.name === 'Abstención')
-  const abs = absIdx !== -1 ? elec.candidates.splice(absIdx, 1)[0] : null
-  elec.candidates.push({
-    id: elec.candidates.length + 1,
-    name: newCandName.value.trim(),
-    photo: newCandPhoto.value,
-    votos: 0,
-  })
-  if (abs) {
-    abs.id = elec.candidates.length + 1
-    elec.candidates.push(abs)
+
+  if (modoReal.value) {
+    const { data, error: err } = await addOpcion(elec.id, newCandName.value.trim(), elec.candidates.length)
+    if (err || !data) return
+    const absIdx = elec.candidates.findIndex(c => c.name === 'Abstención')
+    const abs = absIdx !== -1 ? elec.candidates.splice(absIdx, 1)[0] : null
+    elec.candidates.push({ id: data.id, name: data.texto, icon: initialsOf(data.texto), color: colorFor(data.id), votos: 0 })
+    if (abs) elec.candidates.push(abs)
+  } else {
+    const absIdx = elec.candidates.findIndex(c => c.name === 'Abstención')
+    const abs = absIdx !== -1 ? elec.candidates.splice(absIdx, 1)[0] : null
+    elec.candidates.push({ id: elec.candidates.length + 1, name: newCandName.value.trim(), photo: newCandPhoto.value, votos: 0 })
+    if (abs) { abs.id = elec.candidates.length + 1; elec.candidates.push(abs) }
   }
   newCandName.value  = ''
   newCandPhoto.value = ''
   showAddCandForm.value = false
 }
 
-// ── SIMULATION ────────────────────────────────────────────────────
+// ── SIMULACIÓN (solo modo demo — nunca escribe votos reales) ─────
 let simInterval = null
 const simulating = ref(false)
 
 function simularVotos() {
-  if (simulating.value || !activeElection.value) return
+  if (modoReal.value || simulating.value || !activeElection.value) return
   simulating.value = true
   const e = activeElection.value
   const total = presentCount.value
@@ -718,6 +810,7 @@ function simularVotos() {
 
 function eliminateCrossElected() {
   // If winners of election 1 (Consejo) also appear in election 2 (Comité), remove them
+  // (heuristico atado a los ids del set demo; en datos reales simplemente no aplica)
   const consejo = elections.value.find(e => e.id === 1)
   const comite  = elections.value.find(e => e.id === 2)
   if (!consejo || !comite || consejo.state !== 'finished') return
@@ -725,29 +818,44 @@ function eliminateCrossElected() {
   comite.candidates = comite.candidates.filter(c => c.name === 'Abstención' || !winnerNames.has(c.name))
 }
 
-function finalizarVotacion() {
+async function finalizarVotacion() {
   if (simInterval) {
     clearInterval(simInterval)
     simInterval = null
   }
   simulating.value = false
-  if (activeElection.value) {
-    winnerElection.value = activeElection.value
-    activeElection.value.state = 'finished'
-    eliminateCrossElected()
-    showWinnerPanel.value = true
-  }
-}
+  if (!activeElection.value) return
 
-onUnmounted(() => {
-  if (simInterval) clearInterval(simInterval)
-})
+  if (modoReal.value) {
+    const { error: err } = await finalizarVotacionApi(activeElection.value.id)
+    if (err) return
+  }
+  winnerElection.value = activeElection.value
+  activeElection.value.state = 'finished'
+  eliminateCrossElected()
+  showWinnerPanel.value = true
+}
 
 // ── ACTA STATE ────────────────────────────────────────────────────
 const actaHoraInicio = ref('')
 const actaHoraFin    = ref('')
 const actaNumero     = ref('')
 const actaAcuerdos   = ref('')
+
+let actaSaveTimer = null
+watch([actaHoraInicio, actaHoraFin, actaNumero, actaAcuerdos], () => {
+  if (!modoReal.value) return
+  clearTimeout(actaSaveTimer)
+  actaSaveTimer = setTimeout(() => {
+    saveActaAsamblea(asambleaId.value, {
+      horaInicio: actaHoraInicio.value,
+      horaCierre: actaHoraFin.value,
+      numActa: actaNumero.value,
+      acuerdos: actaAcuerdos.value,
+      observaciones: '',
+    })
+  }, 800)
+})
 
 function printActa() {
   window.print()

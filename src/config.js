@@ -1,3 +1,5 @@
-// URL del Google Apps Script desplegado como web app
-// Reemplaza este valor después de desplegar el script en Google
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw5sxTGY9PZO08Q8Su46y56D3FEm-VV8ygHOr97ZFjAJV6GdqRO35VDRqfBIvcEOSGM/exec'
+// Configuración centralizada del proyecto
+// Las credenciales sensibles se cargan desde .env (nunca commitear)
+
+export const APPS_SCRIPT_URL = import.meta.env.VITE_APP_SCRIPT_URL || null
+export const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL

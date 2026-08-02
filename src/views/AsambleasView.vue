@@ -108,6 +108,12 @@
         </button>
       </div>
 
+      <div v-if="wizardError" class="convoc-estado convoc-pending" style="border-color:#F5C6C0; color:#C0392B;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>{{ wizardError }}</span>
+      </div>
+      <div v-if="wizardLoading" class="puestos-empty">Cargando…</div>
+
       <!-- Barra de pasos -->
       <div class="stepper-wrap">
         <div class="stepper">
@@ -304,7 +310,7 @@
             <template v-if="!wizardData.convocatoriaEnviada">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               <span>Convocatoria pendiente de envío</span>
-              <button class="btn-primary btn-sm" @click="wizardData.convocatoriaEnviada = true">
+              <button class="btn-primary btn-sm" @click="enviarConvocatoriaClick">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 Enviar convocatoria
               </button>
@@ -353,7 +359,7 @@
                   </div>
                   <span class="cell-cedula">{{ p.cedula }}</span>
                   <span class="badge badge--yellow">Inscrito</span>
-                  <button class="action-btn-sm action-btn-sm--red" @click="puesto.postulantes.splice(i,1)" title="Quitar">
+                  <button class="action-btn-sm action-btn-sm--red" @click="quitarPostulante(puesto, i)" title="Quitar">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
@@ -392,7 +398,7 @@
                   <button
                     class="apr-btn apr-btn--aprobar"
                     :class="p.estado === 'aprobado' ? 'apr-btn--active-green' : ''"
-                    @click="p.estado = p.estado === 'aprobado' ? 'inscrito' : 'aprobado'"
+                    @click="aprobarPostulante(p)"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     Aprobar
@@ -400,7 +406,7 @@
                   <button
                     class="apr-btn apr-btn--rechazar"
                     :class="p.estado === 'rechazado' ? 'apr-btn--active-red' : ''"
-                    @click="p.estado = p.estado === 'rechazado' ? 'inscrito' : 'rechazado'"
+                    @click="rechazarPostulante(p)"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     Rechazar
@@ -475,6 +481,7 @@
           <div class="votaciones-notice">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             Las votaciones se realizan en el módulo <strong>Votaciones</strong>. Aquí se muestran los resultados para consulta.
+            <button v-if="currentAsambleaId" class="btn-primary btn-sm" @click="irAVotaciones">Gestionar votaciones →</button>
           </div>
 
           <div v-for="(vot, vi) in votacionesResultados" :key="vi" class="votacion-resultado-group">
@@ -559,6 +566,73 @@
             <label>Observaciones generales</label>
             <textarea v-model="wizardData.observaciones" rows="2" placeholder="Incidencias, puntos de agenda sin resolver..."></textarea>
           </div>
+
+          <!-- Grabación, transcripción y borrador de minuta con IA -->
+          <div class="acta-section" v-if="currentAsambleaId">
+            <div class="acta-section-title">Grabación y transcripción con IA</div>
+
+            <div v-if="grabacionError" class="convoc-estado convoc-pending" style="border-color:#F5C6C0; color:#C0392B;">
+              <span>{{ grabacionError }}</span>
+            </div>
+
+            <div class="convoc-estado" :class="grabando && !pausado ? 'convoc-ok' : 'convoc-pending'">
+              <template v-if="!grabando && !(grabacion?.audio_segments?.length)">
+                <span>Sin grabación iniciada</span>
+                <button class="btn-primary btn-sm" @click="iniciarGrabacion">🎙️ Iniciar grabación</button>
+              </template>
+              <template v-else-if="grabando && !pausado">
+                <span>🔴 Grabando… {{ segmentosSubidos }} segmento(s) subido(s)</span>
+                <button class="btn-outline btn-sm" @click="pausarGrabacion">⏸ Pausar</button>
+                <button class="btn-success btn-sm" @click="finalizarGrabacionClick">⏹ Finalizar grabación</button>
+              </template>
+              <template v-else-if="grabando && pausado">
+                <span>⏸ Pausado — {{ segmentosSubidos }} segmento(s) subido(s)</span>
+                <button class="btn-primary btn-sm" @click="reanudarGrabacion">▶ Reanudar</button>
+                <button class="btn-success btn-sm" @click="finalizarGrabacionClick">⏹ Finalizar grabación</button>
+              </template>
+              <template v-else>
+                <span>✓ Audio grabado — {{ segmentosSubidos }} segmento(s)</span>
+              </template>
+            </div>
+
+            <div class="convoc-estado convoc-pending" v-if="grabacion?.audio_segments?.length && !grabando">
+              <template v-if="grabacion.estado === 'transcribiendo'">
+                <span>Transcribiendo… {{ (grabacion.transcripcion_segmentos || []).filter(s => s.estado === 'ok').length }} / {{ grabacion.audio_segments.length }} segmentos</span>
+              </template>
+              <template v-else-if="['transcrito','generando_minuta','minuta_lista'].includes(grabacion.estado)">
+                <span>✓ Transcripción lista</span>
+              </template>
+              <template v-else-if="grabacion.estado === 'error_transcripcion'">
+                <span>⚠ Error en la transcripción: {{ grabacion.error_detalle }}</span>
+                <button class="btn-primary btn-sm" @click="iniciarTranscripcionClick">Reintentar</button>
+              </template>
+              <template v-else>
+                <button class="btn-primary btn-sm" @click="iniciarTranscripcionClick">🧠 Transcribir con IA</button>
+              </template>
+            </div>
+
+            <div class="convoc-estado convoc-pending" v-if="['transcrito','generando_minuta','minuta_lista','error_minuta'].includes(grabacion?.estado)">
+              <template v-if="grabacion.estado === 'generando_minuta'">
+                <span>Generando borrador de minuta…</span>
+              </template>
+              <template v-else-if="grabacion.estado === 'error_minuta'">
+                <span>⚠ Error generando la minuta: {{ grabacion.error_detalle }}</span>
+                <button class="btn-primary btn-sm" @click="generarMinutaClick">Reintentar</button>
+              </template>
+              <template v-else-if="grabacion.estado === 'transcrito'">
+                <button class="btn-primary btn-sm" @click="generarMinutaClick">✍️ Generar borrador de minuta</button>
+              </template>
+              <template v-else>
+                <span>✓ Borrador de minuta generado</span>
+              </template>
+            </div>
+
+            <div class="form-field form-field--full" v-if="minutaBorrador">
+              <label>Borrador de minuta (generado por IA — revise y edite antes de usarlo como acta oficial)</label>
+              <textarea v-model="minutaBorrador" rows="10" placeholder="El borrador generado aparecerá aquí..."></textarea>
+            </div>
+          </div>
+
           <div class="form-field form-field--full">
             <label>Adjuntar acta firmada (PDF)</label>
             <div class="file-drop">
@@ -583,12 +657,13 @@
           <button
             v-if="currentStep < 8"
             class="btn-primary"
+            :disabled="wizardSaving"
             @click="nextStep"
           >
             Siguiente paso
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
-          <button v-else class="btn-success" @click="finalizarAsamblea">
+          <button v-else class="btn-success" :disabled="wizardSaving" @click="finalizarAsamblea">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             Finalizar asamblea
           </button>
@@ -751,11 +826,34 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { exportCSV, exportPDF } from '../composables/useExport.js'
 import { useRole } from '../composables/useRole.js'
+import { useAuth } from '../composables/useAuth.js'
+import { useAsambleas, TIPO_LABEL, MODALIDAD_LABEL } from '../composables/useAsambleas.js'
+import { useVotaciones } from '../composables/useVotaciones.js'
+import { useAsociados, initialsOf, colorFor } from '../composables/useAsociados.js'
+import { useGrabacion } from '../composables/useGrabacion.js'
+import { isSupabaseConfigured } from '../lib/supabase.js'
 
+const router = useRouter()
 const { isAdmin, isOperador, isAsociado } = useRole()
+const { currentUser, cooperativaId } = useAuth()
+const {
+  listAsambleas, getAsamblea, createDraft,
+  saveStep1, savePuestos, saveConvocatoria, enviarConvocatoria,
+  addPostulante, removePostulante, setEstadoPostulacion,
+  toggleTerna: toggleTernaApi, saveActa,
+  finalizarAsamblea: finalizarAsambleaApi,
+  misPostulaciones: misPostulacionesApi,
+} = useAsambleas()
+const { loadElecciones, ensureVotaciones } = useVotaciones()
+const { search: searchAsociados, getByProfileId } = useAsociados()
+const {
+  getGrabacion, subirSegmento, finalizarGrabacion,
+  iniciarTranscripcion, generarMinuta, guardarMinutaEditada, subscribeGrabacion,
+} = useGrabacion()
 
 /* ── Pasos del wizard ────────────────────── */
 const steps = [
@@ -769,65 +867,57 @@ const steps = [
   { n: 8, label: 'Acta' },
 ]
 
+/* ── Catálogo de órganos/puestos ─────────── */
+const ORGANOS_CATALOGO = [
+  { id: 'ca', name: 'Consejo de Administración', color: '#133C65', puestos: [
+    { tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años' },
+    { tipo: 'SUPLENTE', cantidad: 1, duracion: 'dos años' },
+  ] },
+  { id: 'cv', name: 'Comité de Vigilancia', color: '#1A9152', puestos: [
+    { tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años' },
+    { tipo: 'SUPLENTE', cantidad: 1, duracion: 'dos años' },
+  ] },
+  { id: 'cebs', name: 'Comité de Educación y Bienestar Social', color: '#7B3FA0', puestos: [
+    { tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años' },
+    { tipo: 'SUPLENTE #2', cantidad: 1, duracion: 'dos años' },
+  ] },
+]
+
+function buildConsejos() {
+  return ORGANOS_CATALOGO.map(c => ({
+    id: c.id, name: c.name, color: c.color,
+    puestos: c.puestos.map((p, i) => ({
+      id: `${c.id}-${i}`, tipo: p.tipo, cantidad: p.cantidad, duracion: p.duracion,
+      selected: false, consejoName: c.name, color: c.color,
+      dbId: null, postulantes: [],
+    })),
+  }))
+}
+
+function mapPostulacionRow(row) {
+  const asociado = row.asociados || {}
+  const ESTADO_DB_A_UI = { pendiente: 'inscrito', aprobada: 'aprobado', rechazada: 'rechazado', elegido: 'aprobado' }
+  return {
+    postulacionId: row.id,
+    id: asociado.id,
+    asociadoId: asociado.id,
+    name: asociado.nombre,
+    cedula: asociado.cedula,
+    initials: initialsOf(asociado.nombre),
+    color: colorFor(asociado.id),
+    estado: ESTADO_DB_A_UI[row.estado] ?? 'inscrito',
+    votos: null,
+    enTerna: row.en_terna,
+  }
+}
+
 /* ── Estado del wizard ───────────────────── */
 const wizardMode = ref(false)
 const currentStep = ref(1)
-
-/* ── Estado postulación (Asociado) ─────── */
-const postulacionMode = ref(false)
-const currentPostulacion = ref(null)
-
-function openPostulacion(asamblea) {
-  currentPostulacion.value = asamblea
-  postulacionMode.value = true
-}
-
-function enviarPostulacion() {
-  const seleccionados = consejosPostulacion.flatMap(c => c.puestos).filter(p => p.selected)
-  seleccionados.forEach(p => {
-    juanPostulaciones.push({
-      id: Date.now() + Math.random(),
-      consejo: p.consejoName,
-      puesto: p.tipo,
-      asamblea: currentPostulacion.value?.name,
-      fechaPost: new Date().toLocaleDateString('es-CR'),
-      estado: 'Pendiente', estadoClass: 'yellow',
-      obs: 'En revisión por el comité electoral',
-    })
-    p.selected = false
-  })
-}
-
-/* ── Postulaciones de Juan Pérez ─────────── */
-const juanPostulaciones = reactive([
-  { id: 1, consejo: 'Consejo de Administración', puesto: 'SUPLENTE',     asamblea: 'Asamblea Ordinaria 2026', fechaPost: '25/05/2026', estado: 'Aprobada',  estadoClass: 'green', obs: 'Cumple requisitos estatutarios' },
-  { id: 2, consejo: 'Comité de Vigilancia',       puesto: 'PROPIETARIOS', asamblea: 'Asamblea Ordinaria 2026', fechaPost: '25/05/2026', estado: 'Rechazada', estadoClass: 'red',   obs: 'Incompatibilidad de función' },
-])
-
-/* ── Consejos para formulario postulación ── */
-const consejosPostulacion = reactive([
-  {
-    id: 'ca', name: 'Consejo de Administración', color: '#133C65',
-    puestos: [
-      { id: 'ca-prop', tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años', selected: false, consejoName: 'Consejo de Administración' },
-      { id: 'ca-sup',  tipo: 'SUPLENTE',     cantidad: 1, duracion: 'dos años', selected: false, consejoName: 'Consejo de Administración' },
-    ],
-  },
-  {
-    id: 'cv', name: 'Comité de Vigilancia', color: '#1A9152',
-    puestos: [
-      { id: 'cv-prop', tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años', selected: false, consejoName: 'Comité de Vigilancia' },
-      { id: 'cv-sup',  tipo: 'SUPLENTE',     cantidad: 1, duracion: 'dos años', selected: false, consejoName: 'Comité de Vigilancia' },
-    ],
-  },
-  {
-    id: 'ce', name: 'Comité de Educación', color: '#7B3FA0',
-    puestos: [
-      { id: 'ce-prop', tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años', selected: false, consejoName: 'Comité de Educación' },
-      { id: 'ce-sup',  tipo: 'SUPLENTE',     cantidad: 1, duracion: 'dos años', selected: false, consejoName: 'Comité de Educación' },
-    ],
-  },
-])
+const currentAsambleaId = ref(null)
+const wizardLoading = ref(false)
+const wizardSaving = ref(false)
+const wizardError = ref(null)
 
 const wizardData = reactive({
   nombre: '', tipo: '', modalidad: '', fecha: '', hora: '', lugar: '',
@@ -837,65 +927,234 @@ const wizardData = reactive({
   asistentes: null, horaInicio: '', horaCierre: '', numActa: '', acuerdos: '', observaciones: '',
 })
 
-/* ── Consejos / Puestos ──────────────────── */
-const consejos = reactive([
-  {
-    id: 'ca', name: 'Consejo de Administración', color: '#133C65',
-    puestos: [
-      { id: 'ca-prop', tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años', selected: false, consejoName: 'Consejo de Administración', color: '#133C65' },
-      { id: 'ca-sup',  tipo: 'SUPLENTE',     cantidad: 1, duracion: 'dos años', selected: false, consejoName: 'Consejo de Administración', color: '#133C65' },
-    ],
-  },
-  {
-    id: 'cv', name: 'Comité de Vigilancia', color: '#1A9152',
-    puestos: [
-      { id: 'cv-prop', tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años', selected: false, consejoName: 'Comité de Vigilancia', color: '#1A9152' },
-      { id: 'cv-sup',  tipo: 'SUPLENTE',     cantidad: 1, duracion: 'dos años', selected: false, consejoName: 'Comité de Vigilancia', color: '#1A9152' },
-    ],
-  },
-  {
-    id: 'cebs', name: 'Comité de Educación y Bienestar Social', color: '#7B3FA0',
-    puestos: [
-      { id: 'cebs-prop', tipo: 'PROPIETARIOS', cantidad: 2, duracion: 'dos años', selected: false, consejoName: 'Comité de Educación y Bienestar Social', color: '#7B3FA0' },
-      { id: 'cebs-sup',  tipo: 'SUPLENTE #2',  cantidad: 1, duracion: 'dos años', selected: false, consejoName: 'Comité de Educación y Bienestar Social', color: '#7B3FA0' },
-    ],
-  },
-])
+function resetWizardData() {
+  Object.assign(wizardData, {
+    nombre: '', tipo: '', modalidad: '', fecha: '', hora: '', lugar: '',
+    quorumReq: 50, diasConvocatoria: 15, agenda: '',
+    fechaConvocatoria: '', fechaLimitePostulacion: '',
+    mensajeConvocatoria: '', convocatoriaEnviada: false,
+    asistentes: null, horaInicio: '', horaCierre: '', numActa: '', acuerdos: '', observaciones: '',
+  })
+}
+
+/* ── Consejos / Puestos (paso 2) ─────────── */
+const consejos = reactive(buildConsejos())
 
 const puestosSeleccionados = computed(() =>
   consejos.flatMap(c => c.puestos.filter(p => p.selected))
 )
+const puestosConPostulantes = computed(() => puestosSeleccionados.value)
 
-const puestosConPostulantes = computed(() =>
-  puestosSeleccionados.value.map(p => ({
-    ...p,
-    postulantes: p.postulantes ?? [],
-    votosBlanco: p.votosBlanco ?? 0,
-    votosNulos: p.votosNulos ?? 0,
+function applyAsambleaData(row) {
+  wizardData.nombre = row.nombre || ''
+  wizardData.tipo = TIPO_LABEL[row.tipo] ?? ''
+  wizardData.modalidad = MODALIDAD_LABEL[row.modalidad] ?? ''
+  wizardData.fecha = row.fecha || ''
+  wizardData.hora = row.hora || ''
+  wizardData.lugar = row.lugar || ''
+  wizardData.quorumReq = row.quorum_requerido ?? 50
+  wizardData.diasConvocatoria = row.dias_convocatoria ?? 15
+  wizardData.agenda = row.descripcion || ''
+  wizardData.fechaConvocatoria = row.fecha_convocatoria || ''
+  wizardData.fechaLimitePostulacion = row.fecha_limite_postulacion || ''
+  wizardData.mensajeConvocatoria = row.mensaje_convocatoria || ''
+  wizardData.convocatoriaEnviada = !!row.convocatoria_enviada_at
+  const asistiaronCount = (row.asamblea_invitados || []).filter(i => i.asistio).length
+  wizardData.asistentes = asistiaronCount || null
+  wizardData.horaInicio = row.hora_inicio_real || ''
+  wizardData.horaCierre = row.hora_cierre_real || ''
+  wizardData.numActa = row.numero_acta || ''
+  wizardData.acuerdos = row.acuerdos || ''
+  wizardData.observaciones = row.observaciones || ''
+
+  const fresh = buildConsejos()
+  const puestosDb = row.asamblea_puestos || []
+  const postulacionesDb = row.asamblea_postulaciones || []
+  fresh.forEach(consejo => {
+    consejo.puestos.forEach(puesto => {
+      const match = puestosDb.find(pd => pd.organo_nombre === consejo.name && pd.tipo === puesto.tipo)
+      if (match) {
+        puesto.selected = true
+        puesto.dbId = match.id
+        puesto.cantidad = match.cantidad
+        puesto.duracion = match.duracion
+        puesto.postulantes = postulacionesDb.filter(p => p.puesto_id === match.id).map(mapPostulacionRow)
+      }
+    })
+  })
+  consejos.splice(0, consejos.length, ...fresh)
+}
+
+/* ── Resultados de votación (pasos 7 y 8) ── */
+const votacionesResultados = ref([])
+
+async function cargarResultadosVotacion(asambleaId) {
+  if (!isSupabaseConfigured() || !asambleaId) return
+  const { data, error: err } = await loadElecciones(asambleaId)
+  if (err || !data) return
+
+  votacionesResultados.value = data
+    .filter(e => e.candidates.some(c => c.asociadoId))
+    .map(e => {
+      const totalVotos = e.candidates.reduce((s, c) => s + (c.votos || 0), 0)
+      const maxVotos = Math.max(0, ...e.candidates.map(c => c.votos || 0))
+      return {
+        titulo: e.title,
+        totalVotos,
+        candidatos: e.candidates
+          .filter(c => c.name !== 'Abstención')
+          .map(c => ({ nombre: c.name, votos: c.votos, totalVotos, electo: maxVotos > 0 && c.votos === maxVotos })),
+      }
+    })
+
+  const votosPorAsociado = new Map()
+  data.forEach(e => e.candidates.forEach(c => { if (c.asociadoId) votosPorAsociado.set(c.asociadoId, c.votos) }))
+  consejos.forEach(consejo => consejo.puestos.forEach(puesto => {
+    puesto.postulantes.forEach(p => {
+      if (votosPorAsociado.has(p.asociadoId)) p.votos = votosPorAsociado.get(p.asociadoId)
+    })
   }))
-)
+}
 
-/* ── Postulaciones ───────────────────────── */
-consejos.forEach(c => c.puestos.forEach(p => { p.postulantes = []; p.votosBlanco = 0; p.votosNulos = 0 }))
+watch(currentStep, (n) => {
+  if ((n === 7 || n === 8) && currentAsambleaId.value) cargarResultadosVotacion(currentAsambleaId.value)
+  if (n === 8 && currentAsambleaId.value) cargarGrabacion()
+})
 
+/* ── Grabación, transcripción y minuta (paso 8) ──── */
+const grabacion = ref(null)
+const grabando = ref(false)
+const pausado = ref(false)
+const segmentosSubidos = ref(0)
+const grabacionError = ref(null)
+const minutaBorrador = ref('')
+
+let mediaStream = null
+let recorder = null
+let rotateTimer = null
+let seqSegmento = 0
+let unsubscribeGrabacion = null
+const SEGMENT_MS = 10 * 60 * 1000 // 10 minutos por segmento
+
+async function cargarGrabacion() {
+  if (!isSupabaseConfigured() || !currentAsambleaId.value) return
+  const { data } = await getGrabacion(currentAsambleaId.value)
+  grabacion.value = data
+  minutaBorrador.value = data?.minuta_borrador || ''
+  segmentosSubidos.value = data?.audio_segments?.length || 0
+  seqSegmento = segmentosSubidos.value
+
+  if (unsubscribeGrabacion) unsubscribeGrabacion()
+  unsubscribeGrabacion = subscribeGrabacion(currentAsambleaId.value, async () => {
+    const { data: fresh } = await getGrabacion(currentAsambleaId.value)
+    const estadoAnterior = grabacion.value?.estado
+    grabacion.value = fresh
+    segmentosSubidos.value = fresh?.audio_segments?.length || 0
+    if (fresh?.estado === 'minuta_lista' && estadoAnterior !== 'minuta_lista') {
+      minutaBorrador.value = fresh.minuta_borrador || ''
+    }
+  })
+}
+
+function avisarSalidaGrabando(e) {
+  if (grabando.value) { e.preventDefault(); e.returnValue = '' }
+}
+
+async function iniciarSegmentoGrabacion() {
+  recorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 32000 })
+  const chunks = []
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+  recorder.onstop = async () => {
+    const blob = new Blob(chunks, { type: 'audio/webm' })
+    const seqActual = seqSegmento++
+    const { error: err } = await subirSegmento(cooperativaId.value, currentAsambleaId.value, seqActual, blob)
+    if (err) grabacionError.value = 'Error subiendo segmento de audio: ' + err.message
+    else segmentosSubidos.value++
+    if (grabando.value && !pausado.value) await iniciarSegmentoGrabacion()
+  }
+  recorder.start()
+  rotateTimer = setTimeout(() => { if (recorder && recorder.state === 'recording') recorder.stop() }, SEGMENT_MS)
+}
+
+async function iniciarGrabacion() {
+  grabacionError.value = null
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  } catch (e) {
+    grabacionError.value = 'No se pudo acceder al micrófono: ' + e.message
+    return
+  }
+  grabando.value = true
+  pausado.value = false
+  window.addEventListener('beforeunload', avisarSalidaGrabando)
+  await iniciarSegmentoGrabacion()
+}
+
+function pausarGrabacion() {
+  if (recorder && recorder.state === 'recording') {
+    pausado.value = true
+    clearTimeout(rotateTimer)
+    recorder.stop()
+  }
+}
+
+async function reanudarGrabacion() {
+  pausado.value = false
+  await iniciarSegmentoGrabacion()
+}
+
+async function finalizarGrabacionClick() {
+  grabando.value = false
+  pausado.value = false
+  clearTimeout(rotateTimer)
+  window.removeEventListener('beforeunload', avisarSalidaGrabando)
+  if (recorder && recorder.state === 'recording') recorder.stop()
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null }
+  setTimeout(() => finalizarGrabacion(currentAsambleaId.value), 1500)
+}
+
+async function iniciarTranscripcionClick() {
+  grabacionError.value = null
+  const { error: err } = await iniciarTranscripcion(currentAsambleaId.value)
+  if (err) grabacionError.value = err.message
+  await cargarGrabacion()
+}
+
+async function generarMinutaClick() {
+  grabacionError.value = null
+  const { error: err } = await generarMinuta(currentAsambleaId.value)
+  if (err) grabacionError.value = err.message
+  await cargarGrabacion()
+}
+
+let minutaSaveTimer = null
+watch(minutaBorrador, (val) => {
+  if (!isSupabaseConfigured() || !currentAsambleaId.value) return
+  clearTimeout(minutaSaveTimer)
+  minutaSaveTimer = setTimeout(() => guardarMinutaEditada(currentAsambleaId.value, val), 800)
+})
+
+onUnmounted(() => {
+  if (unsubscribeGrabacion) unsubscribeGrabacion()
+  if (mediaStream) mediaStream.getTracks().forEach(t => t.stop())
+  window.removeEventListener('beforeunload', avisarSalidaGrabando)
+})
+
+/* ── Postulaciones (paso 4 — admin) ──────── */
 const postModal = reactive({
   open: false, puesto: null, query: '', selected: null,
   showDrop: false, suggestions: [],
 })
 
-const asociados = [
-  { id: 1,  name: 'Juan Pérez Mora',    initials: 'JP', color: '#133C65', cedula: '1-0234-0567' },
-  { id: 2,  name: 'Laura Soto Jiménez', initials: 'LS', color: '#1A9152', cedula: '2-0456-0789' },
-  { id: 3,  name: 'Roberto Ureña',      initials: 'RU', color: '#C47F0C', cedula: '3-0123-0456' },
-  { id: 4,  name: 'Carmen Fallas',      initials: 'CF', color: '#7B3FA0', cedula: '1-0678-0901' },
-  { id: 5,  name: 'Ernesto Vega',       initials: 'EV', color: '#00808C', cedula: '4-0234-0567' },
-  { id: 6,  name: 'María Rodríguez',    initials: 'MR', color: '#133C65', cedula: '1-0501-0234' },
-  { id: 7,  name: 'Carlos Solano',      initials: 'CS', color: '#1A9152', cedula: '2-0301-0888' },
-  { id: 8,  name: 'Ana Vargas',         initials: 'AV', color: '#7B3FA0', cedula: '4-0102-0345' },
-  { id: 9,  name: 'Luis Jiménez',       initials: 'LJ', color: '#C47F0C', cedula: '1-0721-0912' },
-  { id: 10, name: 'Patricia Mora',      initials: 'PM', color: '#C0392B', cedula: '3-0561-0234' },
-  { id: 11, name: 'Fernando Castro',    initials: 'FC', color: '#1565C0', cedula: '1-0845-0312' },
-  { id: 12, name: 'Gloria Herrera',     initials: 'GH', color: '#00808C', cedula: '2-0613-0789' },
+const MOCK_ASOCIADOS = [
+  { id: 1, name: 'Juan Pérez Mora', initials: 'JP', color: '#133C65', cedula: '1-0234-0567' },
+  { id: 2, name: 'Laura Soto Jiménez', initials: 'LS', color: '#1A9152', cedula: '2-0456-0789' },
+  { id: 3, name: 'Roberto Ureña', initials: 'RU', color: '#C47F0C', cedula: '3-0123-0456' },
+  { id: 4, name: 'Carmen Fallas', initials: 'CF', color: '#7B3FA0', cedula: '1-0678-0901' },
+  { id: 5, name: 'Ernesto Vega', initials: 'EV', color: '#00808C', cedula: '4-0234-0567' },
+  { id: 6, name: 'María Rodríguez', initials: 'MR', color: '#133C65', cedula: '1-0501-0234' },
+  { id: 7, name: 'Carlos Solano', initials: 'CS', color: '#1A9152', cedula: '2-0301-0888' },
+  { id: 8, name: 'Ana Vargas', initials: 'AV', color: '#7B3FA0', cedula: '4-0102-0345' },
 ]
 
 function openPostulacionModal(puesto) {
@@ -907,12 +1166,20 @@ function openPostulacionModal(puesto) {
   postModal.open = true
 }
 
-function onPostSearch() {
-  const q = postModal.query.trim().toLowerCase()
-  postModal.suggestions = q
-    ? asociados.filter(a => a.name.toLowerCase().includes(q) || a.cedula.includes(q))
-    : asociados.slice(0, 8)
+async function onPostSearch() {
   postModal.showDrop = true
+  if (!isSupabaseConfigured()) {
+    const q = postModal.query.trim().toLowerCase()
+    postModal.suggestions = q
+      ? MOCK_ASOCIADOS.filter(a => a.name.toLowerCase().includes(q) || a.cedula.includes(q))
+      : MOCK_ASOCIADOS.slice(0, 8)
+    return
+  }
+  const { data } = await searchAsociados(postModal.query)
+  postModal.suggestions = (data || []).map(a => ({
+    id: a.id, name: a.nombre, cedula: a.cedula,
+    initials: initialsOf(a.nombre), color: colorFor(a.id),
+  }))
 }
 
 function selectPostulante(a) {
@@ -921,25 +1188,59 @@ function selectPostulante(a) {
   postModal.showDrop = false
 }
 
-function confirmarPostulante() {
+async function confirmarPostulante() {
   if (!postModal.selected || !postModal.puesto) return
-  const ya = postModal.puesto.postulantes.find(p => p.id === postModal.selected.id)
-  if (!ya) {
-    postModal.puesto.postulantes.push({ ...postModal.selected, estado: 'inscrito', votos: null, enTerna: false })
+  const puesto = postModal.puesto
+  const ya = puesto.postulantes.find(p => (p.asociadoId ?? p.id) === postModal.selected.id)
+  if (ya) { postModal.open = false; return }
+
+  if (!isSupabaseConfigured() || !puesto.dbId) {
+    puesto.postulantes.push({ ...postModal.selected, asociadoId: postModal.selected.id, estado: 'inscrito', votos: null, enTerna: false })
+    postModal.open = false
+    return
   }
+  const { data, error: err } = await addPostulante(puesto.dbId, postModal.selected.id)
+  if (err) { wizardError.value = err.message; return }
+  puesto.postulantes.push(mapPostulacionRow(data))
   postModal.open = false
 }
 
-/* ── Ternas ──────────────────────────────── */
-function toggleTerna(candidato) {
-  candidato.enTerna = !candidato.enTerna
+async function quitarPostulante(puesto, i) {
+  const p = puesto.postulantes[i]
+  if (isSupabaseConfigured() && p.postulacionId) await removePostulante(p.postulacionId)
+  puesto.postulantes.splice(i, 1)
 }
 
-/* ── Votaciones ──────────────────────────── */
-const quorumLogrado = computed(() => {
-  if (!wizardData.asistentes || !wizardData.quorumReq) return '—'
-  return Math.round((wizardData.asistentes / wizardData.quorumReq) * 100 * 10) / 10 + '%'
-})
+/* ── Aprobación (paso 5) ─────────────────── */
+async function aprobarPostulante(p) {
+  const nuevoUi = p.estado === 'aprobado' ? 'inscrito' : 'aprobado'
+  if (isSupabaseConfigured() && p.postulacionId) {
+    await setEstadoPostulacion(p.postulacionId, nuevoUi === 'aprobado' ? 'aprobada' : 'pendiente')
+  }
+  p.estado = nuevoUi
+}
+
+async function rechazarPostulante(p) {
+  const nuevoUi = p.estado === 'rechazado' ? 'inscrito' : 'rechazado'
+  if (isSupabaseConfigured() && p.postulacionId) {
+    await setEstadoPostulacion(p.postulacionId, nuevoUi === 'rechazado' ? 'rechazada' : 'pendiente')
+  }
+  p.estado = nuevoUi
+}
+
+/* ── Ternas (paso 6) ─────────────────────── */
+async function toggleTerna(candidato) {
+  const nuevo = !candidato.enTerna
+  if (isSupabaseConfigured() && candidato.postulacionId) {
+    await toggleTernaApi(candidato.postulacionId, nuevo)
+  }
+  candidato.enTerna = nuevo
+}
+
+function irAVotaciones() {
+  if (!currentAsambleaId.value) return
+  router.push({ path: '/dashboard/votaciones', query: { asamblea: currentAsambleaId.value } })
+}
 
 function ganadorDe(puesto) {
   const cands = puesto.postulantes.filter(c => c.votos > 0)
@@ -947,68 +1248,225 @@ function ganadorDe(puesto) {
   return cands.reduce((a, b) => (Number(a.votos) >= Number(b.votos) ? a : b))
 }
 
-/* ── Navegación ──────────────────────────── */
-function nextStep() {
-  if (currentStep.value < steps.length) currentStep.value++
+/* ── Navegación del wizard ────────────────── */
+async function enviarConvocatoriaClick() {
+  if (!isSupabaseConfigured() || !currentAsambleaId.value) { wizardData.convocatoriaEnviada = true; return }
+  const { error: err } = await enviarConvocatoria(currentAsambleaId.value)
+  if (err) { wizardError.value = err.message; return }
+  wizardData.convocatoriaEnviada = true
 }
 
-function startWizard(asamblea = null) {
-  currentStep.value = asamblea?.step ?? 1
+async function nextStep() {
+  if (currentStep.value >= steps.length) return
+
+  if (!isSupabaseConfigured() || !currentAsambleaId.value) {
+    currentStep.value++
+    return
+  }
+
+  wizardSaving.value = true
+  wizardError.value = null
+  const id = currentAsambleaId.value
+  let result = { error: null }
+
+  if (currentStep.value === 1) {
+    result = await saveStep1(id, wizardData)
+  } else if (currentStep.value === 2) {
+    result = await savePuestos(id, puestosSeleccionados.value)
+    if (!result.error) {
+      const creados = result.data || []
+      puestosSeleccionados.value.forEach(p => {
+        const match = creados.find(c => c.organo_nombre === p.consejoName && c.tipo === p.tipo)
+        if (match) p.dbId = match.id
+      })
+    }
+  } else if (currentStep.value === 3) {
+    result = await saveConvocatoria(id, wizardData)
+  } else if (currentStep.value === 6) {
+    const { error: err } = await ensureVotaciones(id)
+    result = { error: err }
+  }
+
+  wizardSaving.value = false
+  if (result.error) { wizardError.value = result.error.message || 'No se pudo guardar el paso'; return }
+  currentStep.value++
+}
+
+async function startWizard(asamblea = null) {
+  wizardError.value = null
+  votacionesResultados.value = []
+  currentAsambleaId.value = null
+  grabacion.value = null
+  minutaBorrador.value = ''
+  resetWizardData()
+
+  if (!isSupabaseConfigured()) {
+    currentStep.value = asamblea?.step ?? 1
+    wizardMode.value = true
+    if (asamblea) { wizardData.nombre = asamblea.name; wizardData.tipo = asamblea.type }
+    return
+  }
+
+  wizardLoading.value = true
+  const { data, error: err } = asamblea
+    ? await getAsamblea(asamblea.id)
+    : await createDraft(cooperativaId.value)
+  wizardLoading.value = false
+
+  if (err || !data) { wizardError.value = err?.message || 'No se pudo abrir la asamblea'; return }
+
+  currentAsambleaId.value = data.id
+  applyAsambleaData(data)
+  currentStep.value = data.paso_wizard || 1
   wizardMode.value = true
-  if (asamblea) {
-    wizardData.nombre = asamblea.name
-    wizardData.tipo = asamblea.type
+
+  // El watch(currentStep) no dispara si el paso destino coincide con el que ya
+  // estaba activo (ej. dos asambleas distintas ambas en paso 8): forzamos la
+  // carga explicita para no dejar datos de la asamblea anterior en pantalla.
+  if (currentStep.value === 7 || currentStep.value === 8) await cargarResultadosVotacion(data.id)
+  if (currentStep.value === 8) await cargarGrabacion()
+}
+
+async function finalizarAsamblea() {
+  if (!isSupabaseConfigured() || !currentAsambleaId.value) {
+    asambleas.value.unshift({
+      id: Date.now(),
+      name: wizardData.nombre || 'Nueva asamblea',
+      type: wizardData.tipo || 'Ordinaria',
+      date: wizardData.fecha || '—',
+      quorum: wizardData.asistentes ? Math.round(Number(wizardData.asistentes) / 10) : null,
+      step: 8,
+      status: 'Celebrada',
+      statusClass: 'green',
+    })
+    wizardMode.value = false
+    return
+  }
+
+  wizardSaving.value = true
+  wizardError.value = null
+  const { error: e1 } = await saveActa(currentAsambleaId.value, wizardData)
+  if (e1) { wizardSaving.value = false; wizardError.value = e1.message; return }
+  const { error: e2 } = await finalizarAsambleaApi(currentAsambleaId.value)
+  wizardSaving.value = false
+  if (e2) { wizardError.value = e2.message; return }
+
+  wizardMode.value = false
+  await loadAsambleasList()
+}
+
+/* ── Postulación (rol Asociado) ──────────── */
+const consejosPostulacion = reactive(buildConsejos())
+const juanPostulaciones = ref([
+  { id: 1, consejo: 'Consejo de Administración', puesto: 'SUPLENTE', asamblea: 'Asamblea Ordinaria 2026', fechaPost: '25/05/2026', estado: 'Aprobada', estadoClass: 'green', obs: 'Cumple requisitos estatutarios' },
+  { id: 2, consejo: 'Comité de Vigilancia', puesto: 'PROPIETARIOS', asamblea: 'Asamblea Ordinaria 2026', fechaPost: '25/05/2026', estado: 'Rechazada', estadoClass: 'red', obs: 'Incompatibilidad de función' },
+])
+const miAsociado = ref(null)
+
+async function openPostulacion(asamblea) {
+  currentPostulacion.value = asamblea
+  postulacionMode.value = true
+  consejosPostulacion.splice(0, consejosPostulacion.length, ...buildConsejos())
+
+  if (!isSupabaseConfigured()) return
+
+  wizardLoading.value = true
+  const [{ data: asocData }, { data: asambleaData }] = await Promise.all([
+    getByProfileId(currentUser.value?.id),
+    getAsamblea(asamblea.id),
+  ])
+  wizardLoading.value = false
+  miAsociado.value = asocData
+
+  if (asambleaData) {
+    const puestosDb = asambleaData.asamblea_puestos || []
+    consejosPostulacion.forEach(consejo => consejo.puestos.forEach(puesto => {
+      const match = puestosDb.find(pd => pd.organo_nombre === consejo.name && pd.tipo === puesto.tipo)
+      if (match) { puesto.dbId = match.id; puesto.cantidad = match.cantidad; puesto.duracion = match.duracion }
+    }))
+  }
+
+  if (miAsociado.value) {
+    const { data: misPost } = await misPostulacionesApi(miAsociado.value.id)
+    const ESTADO_DB_A_UI = { pendiente: ['Pendiente', 'yellow'], aprobada: ['Aprobada', 'green'], rechazada: ['Rechazada', 'red'], elegido: ['Aprobada', 'green'] }
+    juanPostulaciones.value = (misPost || [])
+      .filter(p => p.asamblea_puestos?.asambleas?.id === asamblea.id)
+      .map(p => {
+        const [estado, estadoClass] = ESTADO_DB_A_UI[p.estado] ?? ['Pendiente', 'yellow']
+        return {
+          id: p.id,
+          consejo: p.asamblea_puestos?.organo_nombre,
+          puesto: p.asamblea_puestos?.tipo,
+          asamblea: asamblea.name,
+          fechaPost: p.created_at ? new Date(p.created_at).toLocaleDateString('es-CR') : '—',
+          estado, estadoClass,
+          obs: '—',
+        }
+      })
   }
 }
 
-function finalizarAsamblea() {
-  asambleas.value.unshift({
-    id: Date.now(),
-    name: wizardData.nombre || 'Nueva asamblea',
-    type: wizardData.tipo || 'Ordinaria',
-    date: wizardData.fecha || '—',
-    quorum: wizardData.asistentes ? Math.round(Number(wizardData.asistentes) / 10) : null,
-    step: 8,
-    status: 'Celebrada',
-    statusClass: 'green',
-  })
-  wizardMode.value = false
+async function enviarPostulacion() {
+  const seleccionados = consejosPostulacion.flatMap(c => c.puestos).filter(p => p.selected)
+
+  if (!isSupabaseConfigured()) {
+    seleccionados.forEach(p => {
+      juanPostulaciones.value.push({
+        id: Date.now() + Math.random(),
+        consejo: p.consejoName, puesto: p.tipo, asamblea: currentPostulacion.value?.name,
+        fechaPost: new Date().toLocaleDateString('es-CR'),
+        estado: 'Pendiente', estadoClass: 'yellow', obs: 'En revisión por el comité electoral',
+      })
+      p.selected = false
+    })
+    return
+  }
+
+  if (!miAsociado.value) { wizardError.value = 'No se encontró tu registro de asociado.'; return }
+  for (const p of seleccionados) {
+    if (!p.dbId) continue
+    const { data, error: err } = await addPostulante(p.dbId, miAsociado.value.id)
+    if (!err) {
+      juanPostulaciones.value.push({
+        id: data.id, consejo: p.consejoName, puesto: p.tipo, asamblea: currentPostulacion.value?.name,
+        fechaPost: new Date().toLocaleDateString('es-CR'),
+        estado: 'Pendiente', estadoClass: 'yellow', obs: 'En revisión por el comité electoral',
+      })
+      p.selected = false
+    }
+  }
 }
 
+const postulacionMode = ref(false)
+const currentPostulacion = ref(null)
+
 /* ── Datos históricos ────────────────────── */
-const proxima = ref({
+const DEMO_PROXIMA = {
   id: 99, name: 'Asamblea Ordinaria 2026', type: 'Ordinaria',
   day: '20', month: 'JUN 2026', hora: '9:00 a.m.',
   lugar: 'Sede Central', modalidad: 'Presencial',
   step: 4, status: 'En proceso', statusClass: 'blue',
-})
-
-const asambleas = ref([
+}
+const DEMO_ASAMBLEAS = [
   { id: 1, name: 'Asamblea Ordinaria 2025', type: 'Ordinaria', date: '22/06/2025', quorum: 78, step: 8, status: 'Celebrada', statusClass: 'green' },
   { id: 2, name: 'Asamblea Extraordinaria', type: 'Extraordinaria', date: '14/11/2024', quorum: 65, step: 8, status: 'Celebrada', statusClass: 'green' },
   { id: 3, name: 'Asamblea Ordinaria 2024', type: 'Ordinaria', date: '18/06/2024', quorum: 82, step: 8, status: 'Celebrada', statusClass: 'green' },
-])
-
-const votacionesResultados = [
-  {
-    titulo: 'Propietario 1 Consejo de Administración',
-    totalVotos: 11,
-    candidatos: [
-      { nombre: 'Ana Rodríguez',  votos: 5, totalVotos: 11, electo: true  },
-      { nombre: 'Carmen López',   votos: 4, totalVotos: 11, electo: false },
-      { nombre: 'Luis Méndez',    votos: 2, totalVotos: 11, electo: false },
-    ],
-  },
-  {
-    titulo: 'Propietario 2 Comité de Vigilancia',
-    totalVotos: 11,
-    candidatos: [
-      { nombre: 'Carlos Vargas',  votos: 5, totalVotos: 11, electo: true  },
-      { nombre: 'Roberto Solano', votos: 4, totalVotos: 11, electo: false },
-      { nombre: 'Patricia Mora',  votos: 2, totalVotos: 11, electo: false },
-    ],
-  },
 ]
+
+const asambleas = ref(isSupabaseConfigured() ? [] : DEMO_ASAMBLEAS)
+
+const proxima = computed(() => {
+  if (!isSupabaseConfigured()) return DEMO_PROXIMA
+  return asambleas.value.find(a => a.statusClass !== 'green' && a.statusClass !== 'red') ?? null
+})
+
+async function loadAsambleasList() {
+  if (!isSupabaseConfigured()) return
+  const { data, error: err } = await listAsambleas()
+  if (!err && data) asambleas.value = data
+}
+
+onMounted(loadAsambleasList)
 </script>
 
 <style scoped>

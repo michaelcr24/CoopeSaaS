@@ -115,12 +115,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { APPS_SCRIPT_URL } from '../config.js'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
+import { isSupabaseConfigured } from '../lib/supabase.js'
 
 const router = useRouter()
-const { setUser } = useAuth()
+const route  = useRoute()
+const { loginWithEmail, setUser } = useAuth()
+
 const email        = ref('')
 const password     = ref('')
 const showPassword = ref(false)
@@ -132,33 +134,28 @@ onMounted(() => {
   requestAnimationFrame(() => { formVisible.value = true })
 })
 
-async function fetchUsers() {
-  const res = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' })
-  if (!res.ok) throw new Error('HTTP ' + res.status)
-  return res.json()
-}
-
 async function handleLogin() {
   if (!email.value || !password.value) return
   loginError.value   = ''
   loginLoading.value = true
+
   try {
-    let users
-    try {
-      users = await fetchUsers()
-    } catch {
-      await new Promise(r => setTimeout(r, 900))
-      users = await fetchUsers()
-    }
-    const found = users.find(u =>
-      String(u.email).trim().toLowerCase() === email.value.trim().toLowerCase() &&
-      String(u.password).trim() === password.value.trim()
-    )
-    if (found) {
-      setUser(found)
-      router.push('/dashboard')
+    if (isSupabaseConfigured()) {
+      const { error } = await loginWithEmail(email.value, password.value)
+      if (error) {
+        loginError.value = 'Correo o contraseña incorrectos. Si aún no tienes acceso, solicita una demo.'
+        return
+      }
+      const redirect = route.query.redirect || '/dashboard'
+      router.push(redirect)
     } else {
-      loginError.value = 'Correo o contraseña incorrectos. Si aún no tienes acceso, solicita una demo.'
+      await new Promise(r => setTimeout(r, 600))
+      setUser({
+        email: email.value,
+        name: email.value.split('@')[0],
+        role: 'admin',
+      })
+      router.push('/dashboard')
     }
   } catch {
     loginError.value = 'No se pudo conectar. Verifica tu conexión e intenta de nuevo.'
