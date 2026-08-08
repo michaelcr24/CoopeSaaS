@@ -100,11 +100,16 @@
       <div class="wizard-topbar">
         <div>
           <h2 class="page-title">{{ wizardData.nombre || 'Nueva asamblea' }}</h2>
-          <p class="page-subtitle">Proceso de planificación · Paso {{ currentStep }} de {{ steps.length }}</p>
+          <p class="page-subtitle">
+            Proceso de planificación · Paso {{ currentStep }} de {{ steps.length }}
+            <span v-if="isSupabaseConfigured() && currentAsambleaId" class="draft-status">
+              · <span v-if="draftSaving">Guardando borrador…</span><span v-else>Borrador guardado</span>
+            </span>
+          </p>
         </div>
-        <button class="btn-outline-danger" @click="wizardMode = false">
+        <button class="btn-outline-danger" @click="salirWizard">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          Salir sin guardar
+          Salir
         </button>
       </div>
 
@@ -1022,6 +1027,64 @@ watch(currentStep, (n) => {
   if (n === 8 && currentAsambleaId.value) cargarGrabacion()
 })
 
+/* ── Autoguardado de borrador ─────────────
+   El wizard ya persistia cada paso al hacer click en "Siguiente", pero lo
+   escrito en el paso ACTUAL se perdia si se salia sin llegar a darle click
+   (cierre de pestaña, "Salir", etc.). Estos watchers guardan en segundo plano
+   sin avanzar paso_wizard, para poder retomar el borrador exactamente donde
+   se dejo. */
+const draftSaving = ref(false)
+let draftSaveTimer = null
+let pendingDraftFn = null
+
+function scheduleDraftSave(fn) {
+  if (!isSupabaseConfigured() || !wizardMode.value || !currentAsambleaId.value) return
+  pendingDraftFn = fn
+  clearTimeout(draftSaveTimer)
+  draftSaveTimer = setTimeout(flushDraftSave, 900)
+}
+
+// Aplica de inmediato un guardado pendiente (ej. al salir del wizard dentro
+// de la ventana de debounce, para no perder lo escrito en los ultimos ~900ms).
+async function flushDraftSave() {
+  clearTimeout(draftSaveTimer)
+  draftSaveTimer = null
+  const fn = pendingDraftFn
+  pendingDraftFn = null
+  if (!fn) return
+  draftSaving.value = true
+  await fn()
+  draftSaving.value = false
+}
+
+watch(() => [wizardData.nombre, wizardData.tipo, wizardData.modalidad, wizardData.fecha, wizardData.hora, wizardData.lugar, wizardData.quorumReq, wizardData.diasConvocatoria, wizardData.agenda], () => {
+  if (currentStep.value !== 1) return
+  if (!wizardData.nombre || !wizardData.tipo || !wizardData.modalidad || !wizardData.fecha || !wizardData.lugar) return
+  scheduleDraftSave(() => saveStep1(currentAsambleaId.value, wizardData, { avanzar: false }))
+})
+
+watch(puestosSeleccionados, () => {
+  if (currentStep.value !== 2) return
+  scheduleDraftSave(async () => {
+    const { data } = await savePuestos(currentAsambleaId.value, puestosSeleccionados.value, { avanzar: false })
+    const creados = data || []
+    puestosSeleccionados.value.forEach(p => {
+      const match = creados.find(c => c.organo_nombre === p.consejoName && c.tipo === p.tipo)
+      if (match) p.dbId = match.id
+    })
+  })
+})
+
+watch(() => [wizardData.fechaConvocatoria, wizardData.fechaLimitePostulacion, wizardData.mensajeConvocatoria], () => {
+  if (currentStep.value !== 3) return
+  scheduleDraftSave(() => saveConvocatoria(currentAsambleaId.value, wizardData))
+})
+
+watch(() => [wizardData.horaInicio, wizardData.horaCierre, wizardData.numActa, wizardData.acuerdos, wizardData.observaciones], () => {
+  if (currentStep.value !== 8) return
+  scheduleDraftSave(() => saveActa(currentAsambleaId.value, wizardData))
+})
+
 /* ── Grabación, transcripción y minuta (paso 8) ──── */
 const grabacion = ref(null)
 const grabando = ref(false)
@@ -1139,6 +1202,7 @@ onUnmounted(() => {
   if (unsubscribeGrabacion) unsubscribeGrabacion()
   if (mediaStream) mediaStream.getTracks().forEach(t => t.stop())
   window.removeEventListener('beforeunload', avisarSalidaGrabando)
+  clearTimeout(draftSaveTimer)
 })
 
 /* ── Postulaciones (paso 4 — admin) ──────── */
@@ -1294,6 +1358,9 @@ async function nextStep() {
 }
 
 async function startWizard(asamblea = null) {
+  clearTimeout(draftSaveTimer)
+  draftSaveTimer = null
+  pendingDraftFn = null
   wizardError.value = null
   votacionesResultados.value = []
   currentAsambleaId.value = null
@@ -1326,6 +1393,12 @@ async function startWizard(asamblea = null) {
   // carga explicita para no dejar datos de la asamblea anterior en pantalla.
   if (currentStep.value === 7 || currentStep.value === 8) await cargarResultadosVotacion(data.id)
   if (currentStep.value === 8) await cargarGrabacion()
+}
+
+async function salirWizard() {
+  await flushDraftSave()
+  wizardMode.value = false
+  await loadAsambleasList()
 }
 
 async function finalizarAsamblea() {
@@ -1479,6 +1552,8 @@ onMounted(loadAsambleasList)
 .dark .page-title { color: #E2E8F0; }
 .page-subtitle { font-size: 13.5px; color: #4A6070; margin-top: 3px; }
 .dark .page-subtitle { color: #94A3B8; }
+.draft-status { color: #1A9152; font-weight: 600; }
+.dark .draft-status { color: #4ADE80; }
 
 /* ── Próxima asamblea ───────────────────── */
 .next-card {

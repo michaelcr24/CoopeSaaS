@@ -95,32 +95,30 @@ export function useAsambleas() {
       .single()
   }
 
-  // Paso 1: Datos generales
-  async function saveStep1(id, payload) {
-    return supabase
-      .from('asambleas')
-      .update({
-        nombre: payload.nombre,
-        tipo: TIPO_ENUM[payload.tipo] ?? payload.tipo,
-        modalidad: MODALIDAD_ENUM[payload.modalidad] ?? payload.modalidad,
-        fecha: payload.fecha,
-        hora: payload.hora || null,
-        lugar: payload.lugar,
-        quorum_requerido: payload.quorumReq || null,
-        dias_convocatoria: payload.diasConvocatoria || null,
-        descripcion: payload.agenda,
-        paso_wizard: 2,
-      })
-      .eq('id', id)
-      .select()
-      .single()
+  // Paso 1: Datos generales. `avanzar: false` guarda el borrador (autoguardado
+  // mientras se escribe) sin marcar el paso como completado; `avanzar: true`
+  // (default, usado por "Siguiente paso") ademas mueve paso_wizard a 2.
+  async function saveStep1(id, payload, { avanzar = true } = {}) {
+    const update = {
+      nombre: payload.nombre,
+      tipo: TIPO_ENUM[payload.tipo] ?? payload.tipo,
+      modalidad: MODALIDAD_ENUM[payload.modalidad] ?? payload.modalidad,
+      fecha: payload.fecha,
+      hora: payload.hora || null,
+      lugar: payload.lugar,
+      quorum_requerido: payload.quorumReq || null,
+      dias_convocatoria: payload.diasConvocatoria || null,
+      descripcion: payload.agenda,
+    }
+    if (avanzar) update.paso_wizard = 2
+    return supabase.from('asambleas').update(update).eq('id', id).select().single()
   }
 
   // Paso 2: Puestos vacantes — diff no destructivo: solo borra los puestos que
   // ya no estan seleccionados e inserta los nuevos, sin tocar los existentes
   // (un delete+reinsert ciego arrastraria en cascada las postulaciones ya
   // registradas contra un puesto si el admin retrocede y vuelve a avanzar).
-  async function savePuestos(asambleaId, puestos) {
+  async function savePuestos(asambleaId, puestos, { avanzar = true } = {}) {
     const { data: existentes, error: exErr } = await supabase
       .from('asamblea_puestos')
       .select('*')
@@ -155,8 +153,10 @@ export function useAsambleas() {
       .order('orden')
     if (selErr) return { data: null, error: selErr }
 
-    const { error: stepErr } = await supabase.from('asambleas').update({ paso_wizard: 3 }).eq('id', asambleaId)
-    if (stepErr) return { data: null, error: stepErr }
+    if (avanzar) {
+      const { error: stepErr } = await supabase.from('asambleas').update({ paso_wizard: 3 }).eq('id', asambleaId)
+      if (stepErr) return { data: null, error: stepErr }
+    }
 
     return { data: puestosCreados, error: null }
   }
