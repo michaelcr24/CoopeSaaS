@@ -7,9 +7,9 @@
       <div class="brand-glow"></div>
 
       <div class="brand-top">
-        <RouterLink to="/" class="brand-logo">
+        <span class="brand-logo">
           <img src="/logo-blanco.png" alt="CoopeSaaS" class="brand-logo-img" />
-        </RouterLink>
+        </span>
       </div>
 
       <div class="brand-content">
@@ -41,13 +41,6 @@
     <!-- Panel derecho: formulario -->
     <div class="form-panel">
       <div class="form-container" :class="{ 'is-visible': formVisible }">
-
-        <div class="form-top">
-          <RouterLink to="/" class="back-link">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-            Volver al inicio
-          </RouterLink>
-        </div>
 
         <div class="form-card">
           <div class="form-header">
@@ -324,19 +317,6 @@ const features = [
   opacity: 1;
   transform: translateX(0);
 }
-
-/* Back link */
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: color 0.15s ease;
-  text-decoration: none;
-}
-.back-link:hover { color: var(--navy); }
 
 /* Card */
 .form-card {
