@@ -17,7 +17,7 @@
     <div class="tabs-wrap">
       <div class="tabs-nav">
         <button
-          v-for="tab in visibleTabs"
+          v-for="tab in tabs"
           :key="tab.key"
           class="tab-btn"
           :class="{ 'tab-btn--active': activeTab === tab.key }"
@@ -126,7 +126,7 @@
           </div>
           <div class="exp-list">
             <div
-              v-for="emp in visibleEmployees"
+              v-for="emp in employees"
               :key="emp.id"
               class="exp-item"
               :class="{ 'exp-item--active': selectedEmp?.id === emp.id }"
@@ -170,42 +170,29 @@
             <div class="exp-section">
               <h4 class="exp-section-title">Información personal</h4>
               <div class="exp-grid">
-                <div class="exp-field"><label>Identificación</label><span>1-0234-0567</span></div>
-                <div class="exp-field"><label>Fecha de nacimiento</label><span>12/04/1985</span></div>
-                <div class="exp-field"><label>Género</label><span>Femenino</span></div>
-                <div class="exp-field"><label>Nacionalidad</label><span>Costarricense</span></div>
-                <div class="exp-field"><label>Estado civil</label><span>Casada</span></div>
-                <div class="exp-field"><label>Teléfono</label><span>8888-1234</span></div>
-                <div class="exp-field exp-field--full"><label>Correo electrónico</label><span>colaborador@cooperativa.com</span></div>
-                <div class="exp-field exp-field--full"><label>Dirección</label><span>San José, Costa Rica</span></div>
+                <div class="exp-field"><label>Identificación</label><span>{{ selectedEmp.identificacion || '—' }}</span></div>
+                <div class="exp-field"><label>Fecha de nacimiento</label><span>{{ selectedEmp.fechaNacimiento ? inputDateToDdmmyyyy(selectedEmp.fechaNacimiento) : '—' }}</span></div>
+                <div class="exp-field"><label>Género</label><span>{{ selectedEmp.genero || '—' }}</span></div>
+                <div class="exp-field"><label>Teléfono</label><span>{{ selectedEmp.telefono || '—' }}</span></div>
+                <div class="exp-field exp-field--full"><label>Correo electrónico</label><span>{{ selectedEmp.correo || '—' }}</span></div>
+                <div class="exp-field exp-field--full"><label>Dirección</label><span>{{ selectedEmp.direccion || '—' }}</span></div>
               </div>
             </div>
 
             <div class="exp-section">
               <h4 class="exp-section-title">Información laboral</h4>
               <div class="exp-grid">
-                <div class="exp-field"><label>Código de empleado</label><span>EMP-001</span></div>
                 <div class="exp-field"><label>Fecha de ingreso</label><span>{{ selectedEmp.date }}</span></div>
                 <div class="exp-field"><label>Departamento</label><span>{{ selectedEmp.dept }}</span></div>
-                <div class="exp-field"><label>Tipo de contrato</label><span>Tiempo completo</span></div>
-                <div class="exp-field"><label>Jornada laboral</label><span>Lunes a Viernes 8h</span></div>
-                <div class="exp-field"><label>Salario base</label><span>₡ 650,000</span></div>
-              </div>
-            </div>
-
-            <div class="exp-section">
-              <h4 class="exp-section-title">Contacto de emergencia</h4>
-              <div class="exp-grid">
-                <div class="exp-field"><label>Nombre</label><span>Roberto González</span></div>
-                <div class="exp-field"><label>Relación</label><span>Esposo</span></div>
-                <div class="exp-field"><label>Teléfono</label><span>8888-5678</span></div>
+                <div class="exp-field"><label>Puesto</label><span>{{ selectedEmp.role }}</span></div>
+                <div class="exp-field"><label>Tipo de contrato</label><span>{{ selectedEmp.tipoContrato || '—' }}</span></div>
+                <div class="exp-field"><label>Salario base</label><span>{{ selectedEmp.salario ? '₡ ' + Number(selectedEmp.salario).toLocaleString('es-CR') : '—' }}</span></div>
               </div>
             </div>
           </div>
 
           <div class="exp-actions">
-            <button class="btn-outline">Editar expediente</button>
-            <button class="btn-primary">Guardar cambios</button>
+            <button class="btn-outline" @click="openModal('editar', selectedEmp)">Editar expediente</button>
           </div>
         </div>
 
@@ -222,15 +209,15 @@
     <template v-if="activeTab === 'vacaciones'">
       <div class="vac-summary">
         <div class="vac-saldo">
-          <span class="vac-num">12</span>
-          <span class="vac-lbl">Días disponibles</span>
+          <span class="vac-num">{{ vacacionesStats.total }}</span>
+          <span class="vac-lbl">Solicitudes totales</span>
         </div>
         <div class="vac-saldo">
-          <span class="vac-num">8</span>
-          <span class="vac-lbl">Días utilizados</span>
+          <span class="vac-num">{{ vacacionesStats.diasAprobados }}</span>
+          <span class="vac-lbl">Días aprobados</span>
         </div>
         <div class="vac-saldo">
-          <span class="vac-num">5</span>
+          <span class="vac-num">{{ vacacionesStats.pendientes }}</span>
           <span class="vac-lbl">Solicitudes pendientes</span>
         </div>
         <div class="export-group">
@@ -260,7 +247,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="v in visibleVacaciones" :key="v.id">
+            <tr v-for="v in vacaciones" :key="v.id">
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: v.color }">{{ v.initials }}</div>
@@ -272,10 +259,10 @@
               <td>{{ v.dias }}</td>
               <td><span class="badge" :class="`badge--${v.statusClass}`">{{ v.status }}</span></td>
               <td class="cell-actions">
-                <button v-if="v.statusClass === 'yellow'" class="action-btn action-btn--green" title="Aprobar">
+                <button v-if="v.statusClass === 'yellow'" class="action-btn action-btn--green" title="Aprobar" @click="resolver(v.id, true)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
-                <button v-if="v.statusClass === 'yellow'" class="action-btn action-btn--red" title="Rechazar">
+                <button v-if="v.statusClass === 'yellow'" class="action-btn action-btn--red" title="Rechazar" @click="resolver(v.id, false)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </td>
@@ -310,7 +297,7 @@
             <tr><th>Colaborador</th><th>Tipo</th><th>Fecha</th><th>Horas</th><th>Estado</th><th></th></tr>
           </thead>
           <tbody>
-            <tr v-for="p in visiblePermisos" :key="p.id">
+            <tr v-for="p in permisos" :key="p.id">
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: p.color }">{{ p.initials }}</div>
@@ -322,10 +309,10 @@
               <td>{{ p.horas }}h</td>
               <td><span class="badge" :class="`badge--${p.statusClass}`">{{ p.status }}</span></td>
               <td class="cell-actions">
-                <button v-if="p.statusClass === 'yellow'" class="action-btn action-btn--green" title="Aprobar">
+                <button v-if="p.statusClass === 'yellow'" class="action-btn action-btn--green" title="Aprobar" @click="resolver(p.id, true)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
-                <button v-if="p.statusClass === 'yellow'" class="action-btn action-btn--red" title="Rechazar">
+                <button v-if="p.statusClass === 'yellow'" class="action-btn action-btn--red" title="Rechazar" @click="resolver(p.id, false)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </td>
@@ -344,95 +331,11 @@
           <h3 class="section-subtitle">Gestión documental</h3>
           <p class="section-desc">Documentos personales, laborales y académicos de los colaboradores</p>
         </div>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(docGrupos.flatMap(g=>g.docs),[{key:'nombre',label:'Documento'},{key:'tipo',label:'Tipo'},{key:'fecha',label:'Fecha'},{key:'vencimiento',label:'Vencimiento'}],'documentos')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
-          </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Documentos')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-          </button>
-          <button class="btn-primary" @click="openModal('documento')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Subir documento
-          </button>
-        </div>
       </div>
 
-      <div class="doc-filters">
-        <div class="search-wrap">
-          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar documento o colaborador..." class="search-input" />
-        </div>
-        <select class="filter-select">
-          <option value="">Todas las categorías</option>
-          <option>Personales</option>
-          <option>Laborales</option>
-          <option>Académicos</option>
-        </select>
-        <select class="filter-select">
-          <option value="">Todos los colaboradores</option>
-          <option v-for="e in employees" :key="e.id">{{ e.name }}</option>
-        </select>
-      </div>
-
-      <!-- Grupos por categoría -->
-      <div class="doc-groups">
-        <div v-for="grupo in visibleDocGrupos" :key="grupo.cat" class="doc-group">
-          <div class="doc-group-header">
-            <div class="doc-group-icon" :style="{ background: grupo.bg }">
-              <span v-html="grupo.icon"></span>
-            </div>
-            <span class="doc-group-title">{{ grupo.cat }}</span>
-            <span class="doc-group-count">{{ grupo.docs.length }} doc.</span>
-          </div>
-          <div class="data-card">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Colaborador</th>
-                  <th>Tipo de documento</th>
-                  <th>Fecha de carga</th>
-                  <th>Vencimiento</th>
-                  <th>Estado</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="doc in grupo.docs" :key="doc.id">
-                  <td>
-                    <div class="cell-user">
-                      <div class="cell-avatar" :style="{ background: doc.color }">{{ doc.initials }}</div>
-                      <span>{{ doc.name }}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="doc-tipo">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      {{ doc.tipo }}
-                    </div>
-                  </td>
-                  <td>{{ doc.carga }}</td>
-                  <td>
-                    <span v-if="doc.vence" :class="doc.venceAlert ? 'doc-vence-alert' : 'doc-vence'">{{ doc.vence }}</span>
-                    <span v-else class="doc-vence-na">—</span>
-                  </td>
-                  <td><span class="badge" :class="`badge--${doc.statusClass}`">{{ doc.status }}</span></td>
-                  <td class="cell-actions">
-                    <button class="action-btn" title="Descargar">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    </button>
-                    <button class="action-btn" title="Ver">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                    <button class="action-btn action-btn--red" title="Eliminar">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div class="exp-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C5D5E5" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <p>Sin documentos registrados. La gestión documental de expedientes estará disponible próximamente.</p>
       </div>
     </template>
 
@@ -444,53 +347,6 @@
         <div>
           <h3 class="section-subtitle">Control de asistencia</h3>
           <p class="section-desc">Registro de entradas, salidas y horas trabajadas</p>
-        </div>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(asistencias,[{key:'name',label:'Colaborador'},{key:'fecha',label:'Fecha'},{key:'entrada',label:'Entrada'},{key:'salida',label:'Salida'},{key:'horas',label:'Horas'}],'asistencia')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
-          </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Asistencia')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-          </button>
-          <button class="btn-primary" @click="openModal('asistencia')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Registrar entrada/salida
-          </button>
-        </div>
-      </div>
-
-      <div class="asist-summary">
-        <div class="asist-stat">
-          <span class="asist-num">28</span>
-          <span class="asist-lbl">Presentes hoy</span>
-        </div>
-        <div class="asist-stat">
-          <span class="asist-num asist-num--red">2</span>
-          <span class="asist-lbl">Ausencias hoy</span>
-        </div>
-        <div class="asist-stat">
-          <span class="asist-num asist-num--yellow">3</span>
-          <span class="asist-lbl">Tardías este mes</span>
-        </div>
-        <div class="asist-stat">
-          <span class="asist-num asist-num--blue">42</span>
-          <span class="asist-lbl">Horas extra mes</span>
-        </div>
-      </div>
-
-      <div class="filters-bar">
-        <div class="search-wrap">
-          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar colaborador..." class="search-input" />
-        </div>
-        <select class="filter-select">
-          <option value="">Todos los colaboradores</option>
-          <option v-for="e in employees" :key="e.id">{{ e.name }}</option>
-        </select>
-        <div class="date-range">
-          <DatePicker model-value="2026-06-01" input-class="filter-select" />
-          <span class="date-sep">—</span>
-          <DatePicker model-value="2026-06-15" input-class="filter-select" />
         </div>
       </div>
 
@@ -508,7 +364,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="a in visibleAsistencias" :key="a.id">
+            <tr v-for="a in asistencias" :key="a.id">
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: a.color }">{{ a.initials }}</div>
@@ -532,6 +388,9 @@
               </td>
               <td><span class="badge" :class="`badge--${a.statusClass}`">{{ a.status }}</span></td>
             </tr>
+            <tr v-if="asistencias.length === 0">
+              <td colspan="7" class="empty-row">Sin registros de asistencia aún.</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -543,18 +402,6 @@
     <template v-if="activeTab === 'incapacidades'">
       <div class="section-header-row">
         <h3 class="section-subtitle">Registro de incapacidades</h3>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(incapacidades,[{key:'name',label:'Colaborador'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'dias',label:'Días'},{key:'institucion',label:'Institución'}],'incapacidades')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
-          </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Incapacidades')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-          </button>
-          <button class="btn-primary" @click="openModal('incapacidad')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nueva incapacidad
-          </button>
-        </div>
       </div>
       <div class="data-card">
         <table class="data-table">
@@ -571,7 +418,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="inc in visibleIncapacidades" :key="inc.id">
+            <tr v-for="inc in incapacidades" :key="inc.id">
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: inc.color }">{{ inc.initials }}</div>
@@ -592,6 +439,9 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
               </td>
+            </tr>
+            <tr v-if="incapacidades.length === 0">
+              <td colspan="8" class="empty-row">Sin incapacidades registradas.</td>
             </tr>
           </tbody>
         </table>
@@ -623,20 +473,20 @@
 
       <div class="cap-summary">
         <div class="cap-stat">
-          <span class="cap-num">12</span>
+          <span class="cap-num">{{ capacitacionesStats.finalizadas }}</span>
           <span class="cap-lbl">Total realizadas</span>
         </div>
         <div class="cap-stat">
-          <span class="cap-num cap-num--blue">3</span>
+          <span class="cap-num cap-num--blue">{{ capacitacionesStats.programadas }}</span>
           <span class="cap-lbl">Programadas</span>
         </div>
         <div class="cap-stat">
-          <span class="cap-num cap-num--green">248</span>
+          <span class="cap-num cap-num--green">{{ capacitacionesStats.horas }}</span>
           <span class="cap-lbl">Horas acumuladas</span>
         </div>
         <div class="cap-stat">
-          <span class="cap-num cap-num--teal">18</span>
-          <span class="cap-lbl">Certificaciones vigentes</span>
+          <span class="cap-num cap-num--teal">{{ capacitacionesStats.asistentes }}</span>
+          <span class="cap-lbl">Asistentes totales</span>
         </div>
       </div>
 
@@ -677,7 +527,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="cap in visibleCapacitaciones" :key="cap.id">
+            <tr v-for="cap in capacitaciones" :key="cap.id">
               <td>
                 <div class="cap-nombre">
                   <span class="cap-titulo">{{ cap.nombre }}</span>
@@ -721,91 +571,11 @@
           <h3 class="section-subtitle">Evaluación de desempeño</h3>
           <p class="section-desc">Evaluaciones periódicas por competencias y objetivos</p>
         </div>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(evaluaciones,[{key:'name',label:'Colaborador'},{key:'periodo',label:'Período'},{key:'calificacion',label:'Calificación'},{key:'evaluador',label:'Evaluador'}],'evaluaciones')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
-          </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Evaluaciones')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-          </button>
-          <button class="btn-primary" @click="openModal('evaluacion')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nueva evaluación
-          </button>
-        </div>
       </div>
 
-      <div class="filters-bar">
-        <div class="search-wrap">
-          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar colaborador..." class="search-input" />
-        </div>
-        <select class="filter-select">
-          <option value="">Todos los períodos</option>
-          <option>Trimestral</option>
-          <option>Semestral</option>
-          <option>Anual</option>
-        </select>
-        <select class="filter-select">
-          <option value="">Todos los tipos</option>
-          <option>Autoevaluación</option>
-          <option>Jefatura</option>
-          <option>180°</option>
-          <option>360°</option>
-        </select>
-        <select class="filter-select">
-          <option value="">Todos los estados</option>
-          <option>Pendiente</option>
-          <option>En proceso</option>
-          <option>Completada</option>
-        </select>
-      </div>
-
-      <div class="data-card">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Colaborador</th>
-              <th>Período</th>
-              <th>Tipo</th>
-              <th>Evaluador</th>
-              <th>Fecha</th>
-              <th>Calificación</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="ev in visibleEvaluaciones" :key="ev.id">
-              <td>
-                <div class="cell-user">
-                  <div class="cell-avatar" :style="{ background: ev.color }">{{ ev.initials }}</div>
-                  <span>{{ ev.name }}</span>
-                </div>
-              </td>
-              <td>{{ ev.periodo }}</td>
-              <td><span class="badge badge--blue">{{ ev.tipo }}</span></td>
-              <td>{{ ev.evaluador }}</td>
-              <td>{{ ev.fecha }}</td>
-              <td>
-                <div v-if="ev.calificacion" class="calificacion-cell">
-                  <span class="calificacion-num" :class="`cal--${ev.calClass}`">{{ ev.calificacion }}</span>
-                  <span class="calificacion-max">/100</span>
-                </div>
-                <span v-else class="text-muted">Pendiente</span>
-              </td>
-              <td><span class="badge" :class="`badge--${ev.statusClass}`">{{ ev.status }}</span></td>
-              <td class="cell-actions">
-                <button class="action-btn" title="Ver evaluación">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-                <button class="action-btn" title="Completar evaluación" @click="openModal('evaluacion')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="exp-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C5D5E5" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <p>Sin evaluaciones registradas. El módulo de evaluación de desempeño estará disponible próximamente.</p>
       </div>
     </template>
 
@@ -928,150 +698,6 @@
             </form>
           </template>
 
-          <!-- Subir documento -->
-          <template v-if="modal.type === 'documento'">
-            <h3 class="modal-title">Subir documento</h3>
-            <p class="modal-subtitle">Adjunta un documento al expediente del colaborador</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
-              <div class="form-field">
-                <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label>Categoría <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Personales</option>
-                    <option>Laborales</option>
-                    <option>Académicos</option>
-                  </select>
-                </div>
-                <div class="form-field">
-                  <label>Tipo de documento <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <optgroup label="Personales">
-                      <option>Cédula de identidad</option>
-                      <option>Pasaporte</option>
-                      <option>Licencia de conducir</option>
-                      <option>Certificación</option>
-                    </optgroup>
-                    <optgroup label="Laborales">
-                      <option>Contrato laboral</option>
-                      <option>Adenda contractual</option>
-                      <option>Nombramiento</option>
-                      <option>Carta disciplinaria</option>
-                    </optgroup>
-                    <optgroup label="Académicos">
-                      <option>Título académico</option>
-                      <option>Certificación de estudios</option>
-                      <option>Constancia</option>
-                    </optgroup>
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha de emisión</label><DatePicker /></div>
-                <div class="form-field"><label>Fecha de vencimiento <span class="text-muted-sm">(si aplica)</span></label><DatePicker /></div>
-              </div>
-              <div class="form-field">
-                <label>Archivo <span class="req">*</span></label>
-                <div class="file-drop">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7A90A0" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  <p>Arrastra el archivo aquí o <label class="file-link">selecciona uno<input type="file" accept=".pdf,.doc,.docx,.jpg,.png" hidden /></label></p>
-                  <small>PDF, Word, JPG o PNG — máx. 10 MB</small>
-                </div>
-              </div>
-              <div class="form-field"><label>Observaciones</label><textarea rows="2" placeholder="Notas sobre el documento..."></textarea></div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar documento</button>
-              </div>
-            </form>
-          </template>
-
-          <!-- Registrar asistencia -->
-          <template v-if="modal.type === 'asistencia'">
-            <h3 class="modal-title">Registrar asistencia</h3>
-            <p class="modal-subtitle">Ingreso manual de entrada o salida de un colaborador</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
-              <div class="form-field">
-                <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><DatePicker required /></div>
-                <div class="form-field">
-                  <label>Tipo de registro <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Entrada</option>
-                    <option>Salida</option>
-                    <option>Entrada y salida</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Hora de entrada</label><input type="time" /></div>
-                <div class="form-field"><label>Hora de salida</label><input type="time" /></div>
-              </div>
-              <div class="form-field">
-                <label>Método de registro</label>
-                <select>
-                  <option>Manual</option>
-                  <option>Código QR</option>
-                  <option>Aplicación móvil</option>
-                  <option>Geolocalización</option>
-                </select>
-              </div>
-              <div class="form-field"><label>Observaciones</label><textarea rows="2" placeholder="Justificación o nota del registro..."></textarea></div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Registrar</button>
-              </div>
-            </form>
-          </template>
-
-          <!-- Nueva incapacidad -->
-          <template v-if="modal.type === 'incapacidad'">
-            <h3 class="modal-title">Registrar incapacidad</h3>
-            <p class="modal-subtitle">Ingresa los datos del certificado de incapacidad</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
-              <div class="form-field">
-                <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker required /></div>
-                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker required /></div>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label>Institución emisora <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>CCSS</option>
-                    <option>INS</option>
-                    <option>Médico privado</option>
-                    <option>Otro</option>
-                  </select>
-                </div>
-                <div class="form-field"><label>N.º de certificado</label><input type="text" placeholder="Número del documento" /></div>
-              </div>
-              <div class="form-field"><label>Diagnóstico general <span class="text-muted-sm">(opcional)</span></label><input type="text" placeholder="Descripción general sin datos médicos sensibles" /></div>
-              <div class="form-field">
-                <label>Documento adjunto <span class="req">*</span></label>
-                <input type="file" accept=".pdf,.jpg,.png" required />
-              </div>
-              <div class="form-field"><label>Observaciones</label><textarea rows="2" placeholder="Notas adicionales..."></textarea></div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Registrar incapacidad</button>
-              </div>
-            </form>
-          </template>
-
           <!-- Nueva capacitación -->
           <template v-if="modal.type === 'capacitacion'">
             <h3 class="modal-title">Nueva capacitación</h3>
@@ -1138,65 +764,6 @@
             </form>
           </template>
 
-          <!-- Nueva evaluación -->
-          <template v-if="modal.type === 'evaluacion'">
-            <h3 class="modal-title">Nueva evaluación de desempeño</h3>
-            <p class="modal-subtitle">Inicia el proceso de evaluación para un colaborador</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
-              <div class="form-row">
-                <div class="form-field">
-                  <label>Colaborador a evaluar <span class="req">*</span></label>
-                  <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-                </div>
-                <div class="form-field">
-                  <label>Evaluador <span class="req">*</span></label>
-                  <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label>Período <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Trimestral</option>
-                    <option>Semestral</option>
-                    <option>Anual</option>
-                  </select>
-                </div>
-                <div class="form-field">
-                  <label>Tipo de evaluación <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Autoevaluación</option>
-                    <option>Jefatura</option>
-                    <option>180°</option>
-                    <option>360°</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-field"><label>Fecha programada <span class="req">*</span></label><DatePicker required /></div>
-
-              <div class="form-section-title" style="margin-top:4px">Competencias a evaluar</div>
-              <div class="eval-competencias">
-                <div class="comp-item" v-for="comp in ['Trabajo en equipo','Liderazgo','Comunicación','Productividad','Servicio al asociado']" :key="comp">
-                  <span class="comp-label">{{ comp }}</span>
-                  <div class="comp-stars">
-                    <button type="button" v-for="n in 5" :key="n" class="star-btn">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C5D5E5" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-field"><label>Objetivos / Metas del período</label><textarea rows="3" placeholder="Describe las metas individuales o indicadores del colaborador..."></textarea></div>
-              <div class="form-field"><label>Observaciones generales</label><textarea rows="2" placeholder="Notas del evaluador..."></textarea></div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Crear evaluación</button>
-              </div>
-            </form>
-          </template>
-
         </div>
       </div>
     </Transition>
@@ -1205,23 +772,19 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { exportCSV, exportPDF } from '../composables/useExport.js'
-import { useRole } from '../composables/useRole.js'
 import { useAuth } from '../composables/useAuth.js'
 import { usePersonal } from '../composables/usePersonal.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
 import DatePicker from '../components/DatePicker.vue'
 
-const { isAdmin, isOperador } = useRole()
 const { cooperativaId } = useAuth()
 const {
   listDepartamentos, listCargos, listEmpleados, createEmpleado, updateEmpleado,
   findOrCreateDepartamento, findOrCreateCargo,
   listPermisos, crearPermiso, resolverPermiso, listCapacitaciones, crearCapacitacion,
 } = usePersonal()
-
-const ANA_ID = 3
 
 const activeTab = ref('dashboard')
 const search = ref('')
@@ -1363,20 +926,6 @@ async function loadEmpleados() {
 
 onMounted(async () => {
   await loadEmpleados()
-  if (isOperador.value) {
-    selectedEmp.value = employees.value.find(e => e.id === ANA_ID) ?? null
-    activeTab.value = 'expedientes'
-  }
-})
-
-watch(isOperador, (val) => {
-  if (val) {
-    selectedEmp.value = employees.value.find(e => e.id === ANA_ID) ?? null
-    activeTab.value = 'expedientes'
-  } else {
-    selectedEmp.value = null
-    activeTab.value = 'dashboard'
-  }
 })
 
 /* ── Pestañas ───────────────────────────── */
@@ -1419,19 +968,6 @@ const indicatorValues = computed(() => {
 })
 
 const indicators = computed(() => INDICATOR_META.map(m => ({ ...m, value: indicatorValues.value[m.key] ?? 0 })))
-
-const visibleEmployees = computed(() =>
-  isOperador.value ? employees.value.filter(e => e.id === ANA_ID) : employees.value
-)
-
-const visibleTabs = computed(() => {
-  if (isOperador.value) {
-    return tabs
-      .filter(t => t.key !== 'dashboard' && t.key !== 'historial' && t.key !== 'reportes')
-      .map(t => t.key === 'expedientes' ? { ...t, label: 'Expediente' } : t)
-  }
-  return tabs
-})
 
 /* ── Empleados ──────────────────────────── */
 const DEMO_EMPLOYEES = [
@@ -1479,6 +1015,17 @@ async function loadVacacionesYPermisos() {
 }
 onMounted(loadVacacionesYPermisos)
 
+async function resolver(id, aprobado) {
+  const { error } = await resolverPermiso(id, aprobado)
+  if (!error) await loadVacacionesYPermisos()
+}
+
+const vacacionesStats = computed(() => ({
+  total: vacaciones.value.length,
+  diasAprobados: vacaciones.value.filter(v => v.status === 'Aprobada').reduce((sum, v) => sum + (Number(v.dias) || 0), 0),
+  pendientes: vacaciones.value.filter(v => v.status === 'Pendiente').length,
+}))
+
 /* ── Nueva solicitud de vacaciones/permiso ── */
 const vacacionForm = reactive({ empleadoId: '', inicio: '', fin: '', motivo: '' })
 const permisoForm = reactive({ empleadoId: '', tipo: '', fecha: '', horas: 8, motivo: '' })
@@ -1509,56 +1056,13 @@ async function enviarPermiso() {
   modal.open = false
 }
 
-/* ── Documentos mock ────────────────────── */
-const docGrupos = [
-  {
-    cat: 'Documentos personales',
-    bg: 'rgba(19,60,101,0.08)',
-    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#133C65" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-    docs: [
-      { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', tipo: 'Cédula de identidad',   carga: '01/03/2018', vence: '15/09/2027', venceAlert: false, status: 'Vigente',  statusClass: 'green' },
-      { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', tipo: 'Licencia de conducir',  carga: '15/07/2019', vence: '30/06/2026', venceAlert: true,  status: 'Por vencer',statusClass: 'yellow' },
-      { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', tipo: 'Cédula de identidad',   carga: '20/01/2021', vence: '10/12/2028', venceAlert: false, status: 'Vigente',  statusClass: 'green' },
-    ]
-  },
-  {
-    cat: 'Documentos laborales',
-    bg: 'rgba(26,145,82,0.08)',
-    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A9152" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`,
-    docs: [
-      { id: 4, name: 'María Rodríguez', initials: 'MR', color: '#133C65', tipo: 'Contrato laboral',    carga: '01/03/2018', vence: null,          venceAlert: false, status: 'Activo',  statusClass: 'green' },
-      { id: 5, name: 'Patricia Mora',   initials: 'PM', color: '#C0392B', tipo: 'Nombramiento',        carga: '03/09/2022', vence: '03/09/2024',  venceAlert: true,  status: 'Vencido', statusClass: 'gray' },
-      { id: 6, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', tipo: 'Adenda contractual',  carga: '10/01/2024', vence: null,           venceAlert: false, status: 'Activo',  statusClass: 'green' },
-    ]
-  },
-  {
-    cat: 'Documentos académicos',
-    bg: 'rgba(123,63,160,0.08)',
-    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B3FA0" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
-    docs: [
-      { id: 7, name: 'Carlos Solano', initials: 'CS', color: '#1A9152', tipo: 'Título universitario',     carga: '15/07/2019', vence: null,         venceAlert: false, status: 'Vigente', statusClass: 'green' },
-      { id: 8, name: 'Ana Vargas',    initials: 'AV', color: '#7B3FA0', tipo: 'Certificación técnica',    carga: '05/06/2023', vence: '05/06/2025', venceAlert: true,  status: 'Por vencer', statusClass: 'yellow' },
-    ]
-  }
-]
-
-/* ── Asistencia mock ────────────────────── */
-const asistencias = [
-  { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', fecha: '15/06/2026', entrada: '07:58', salida: '17:05', horas: 9,   extra: 1,    status: 'Completo',  statusClass: 'green' },
-  { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', fecha: '15/06/2026', entrada: '08:22', salida: '17:01', horas: 8.6, extra: null, status: 'Tardía',    statusClass: 'yellow' },
-  { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', fecha: '15/06/2026', entrada: '08:00', salida: null,    horas: null,extra: null, status: 'En oficina',statusClass: 'blue' },
-  { id: 4, name: 'Patricia Mora',   initials: 'PM', color: '#C0392B', fecha: '15/06/2026', entrada: '07:55', salida: '16:58', horas: 9,   extra: 1,    status: 'Completo',  statusClass: 'green' },
-  { id: 5, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', fecha: '15/06/2026', entrada: null,   salida: null,    horas: null,extra: null, status: 'Ausente',   statusClass: 'gray' },
-  { id: 6, name: 'María Rodríguez', initials: 'MR', color: '#133C65', fecha: '13/06/2026', entrada: '08:01', salida: '17:00', horas: 9,   extra: 1,    status: 'Completo',  statusClass: 'green' },
-  { id: 7, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', fecha: '13/06/2026', entrada: '08:00', salida: '17:00', horas: 8,   extra: null, status: 'Completo',  statusClass: 'green' },
-]
-
-/* ── Incapacidades mock ─────────────────── */
-const incapacidades = [
-  { id: 1, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', inicio: '02/06/2026', fin: '05/06/2026', dias: 3, institucion: 'CCSS',           diagnostico: 'Cuadro respiratorio', status: 'Aprobada',  statusClass: 'green' },
-  { id: 2, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', inicio: '10/06/2026', fin: '12/06/2026', dias: 2, institucion: 'Médico privado',  diagnostico: '',                    status: 'Aprobada',  statusClass: 'green' },
-  { id: 3, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', inicio: '15/06/2026', fin: '17/06/2026', dias: 3, institucion: 'CCSS',           diagnostico: '',                    status: 'Pendiente', statusClass: 'yellow' },
-]
+// Documentos, asistencia, incapacidades y evaluaciones de desempeño no
+// tienen tabla propia todavia en el esquema (no hay `documentos`,
+// `evaluaciones_desempeno` ni tabla de marcaje diario). En vez de simular
+// datos, estas pestañas muestran un estado vacio honesto hasta que se
+// coordine el modelo de datos correspondiente.
+const asistencias = []
+const incapacidades = []
 
 /* ── Capacitaciones mock ────────────────── */
 const DEMO_CAPACITACIONES = [
@@ -1577,6 +1081,16 @@ async function loadCapacitaciones() {
 }
 onMounted(loadCapacitaciones)
 
+const capacitacionesStats = computed(() => {
+  const list = capacitaciones.value
+  return {
+    finalizadas: list.filter(c => c.status === 'Finalizada').length,
+    programadas: list.filter(c => c.status === 'Programada').length,
+    horas: list.reduce((sum, c) => sum + (Number(c.horas) || 0), 0),
+    asistentes: list.reduce((sum, c) => sum + (Number(c.asistentes) || 0), 0),
+  }
+})
+
 const capacitacionForm = reactive({ nombre: '', categoria: '', modalidad: '', fecha: '', horas: '', instructor: '', estado: 'Programada' })
 const capacitacionError = ref(null)
 
@@ -1591,29 +1105,6 @@ async function guardarCapacitacion() {
   modal.open = false
 }
 
-/* ── Evaluaciones mock ──────────────────── */
-const evaluaciones = [
-  { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', periodo: 'Semestral', tipo: 'Jefatura',      evaluador: 'Gerencia',        fecha: '30/06/2026', calificacion: null, calClass: '',      status: 'Pendiente',   statusClass: 'yellow' },
-  { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', periodo: 'Anual',     tipo: '360°',          evaluador: 'Comité RRHH',     fecha: '15/12/2025', calificacion: 87,   calClass: 'good',  status: 'Completada',  statusClass: 'green' },
-  { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', periodo: 'Semestral', tipo: 'Autoevaluación', evaluador: 'Ana Vargas',     fecha: '30/06/2026', calificacion: null, calClass: '',      status: 'En proceso',  statusClass: 'blue' },
-  { id: 4, name: 'Patricia Mora',   initials: 'PM', color: '#C0392B', periodo: 'Anual',     tipo: 'Jefatura',      evaluador: 'Gerencia',        fecha: '15/12/2025', calificacion: 74,   calClass: 'mid',   status: 'Completada',  statusClass: 'green' },
-  { id: 5, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', periodo: 'Semestral', tipo: '180°',          evaluador: 'Comité RRHH',     fecha: '30/06/2026', calificacion: null, calClass: '',      status: 'Pendiente',   statusClass: 'yellow' },
-]
-
-/* ── Filtros por rol ─────────────────────── */
-const visibleVacaciones      = computed(() => isOperador.value ? vacaciones.value.filter(v => v.name === 'Ana Vargas') : vacaciones.value)
-const visiblePermisos        = computed(() => isOperador.value ? permisos.value.filter(p => p.name === 'Ana Vargas') : permisos.value)
-const visibleAsistencias     = computed(() => isOperador.value ? asistencias.filter(a => a.name === 'Ana Vargas') : asistencias)
-const visibleIncapacidades   = computed(() => isOperador.value ? incapacidades.filter(i => i.name === 'Ana Vargas') : incapacidades)
-const visibleEvaluaciones    = computed(() => isOperador.value ? evaluaciones.filter(e => e.name === 'Ana Vargas') : evaluaciones)
-const visibleDocGrupos       = computed(() => {
-  if (!isOperador.value) return docGrupos
-  return docGrupos
-    .map(g => ({ ...g, docs: g.docs.filter(d => d.name === 'Ana Vargas') }))
-    .filter(g => g.docs.length > 0)
-})
-const ANA_CAPS = [2, 3, 5]
-const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.value.filter(c => ANA_CAPS.includes(c.id)) : capacitaciones.value)
 </script>
 
 <style scoped>
