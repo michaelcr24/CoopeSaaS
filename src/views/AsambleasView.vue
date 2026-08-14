@@ -10,7 +10,7 @@
           <h2 class="page-title">Asambleas</h2>
           <p class="page-subtitle">Planificación, elecciones y archivo de asambleas</p>
         </div>
-        <button v-if="!isAsociado" class="btn-primary" @click="startWizard()">
+        <button class="btn-primary" @click="startWizard()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Programar asamblea
         </button>
@@ -32,8 +32,7 @@
             <span class="next-step-label">Paso actual</span>
             <span class="next-step-val">{{ steps[proxima.step - 1].label }}</span>
           </div>
-          <button v-if="!isAsociado" class="btn-outline-white" @click="startWizard(proxima)">Continuar proceso</button>
-          <button v-if="isAsociado" class="btn-outline-white" @click="openPostulacion(proxima)">Ver mis postulaciones</button>
+          <button class="btn-outline-white" @click="startWizard(proxima)">Continuar proceso</button>
         </div>
       </div>
 
@@ -78,11 +77,8 @@
               </td>
               <td><span class="badge" :class="`badge--${a.statusClass}`">{{ a.status }}</span></td>
               <td class="cell-actions">
-                <button v-if="!isAsociado" class="action-btn" title="Abrir proceso" @click="startWizard(a)">
+                <button class="action-btn" title="Abrir proceso" @click="startWizard(a)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-                </button>
-                <button v-if="isAsociado" class="action-btn" title="Mis postulaciones" @click="openPostulacion(a)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </td>
             </tr>
@@ -829,7 +825,6 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { exportCSV, exportPDF } from '../composables/useExport.js'
-import { useRole } from '../composables/useRole.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useAsambleas, TIPO_LABEL, MODALIDAD_LABEL } from '../composables/useAsambleas.js'
 import { useVotaciones } from '../composables/useVotaciones.js'
@@ -839,7 +834,6 @@ import { isSupabaseConfigured } from '../lib/supabase.js'
 import DatePicker from '../components/DatePicker.vue'
 
 const router = useRouter()
-const { isAdmin, isOperador, isAsociado } = useRole()
 const { currentUser, cooperativaId } = useAuth()
 const {
   listAsambleas, getAsamblea, createDraft,

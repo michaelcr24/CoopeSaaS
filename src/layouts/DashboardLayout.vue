@@ -18,7 +18,7 @@
       <!-- Navigation -->
       <nav class="sidebar-nav">
 
-        <RouterLink v-if="!isAsociado && !isConsejo" to="/dashboard" class="nav-item" :class="{ 'nav-item--active': isExact('/dashboard') }">
+        <RouterLink to="/dashboard" class="nav-item" :class="{ 'nav-item--active': isExact('/dashboard') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
@@ -30,7 +30,7 @@
 
         <div class="nav-section-label">Módulos</div>
 
-        <RouterLink v-if="isModuleActive('personal') && !isAsociado && !isConsejo" to="/dashboard/personal" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/personal') }">
+        <RouterLink v-if="canSeeModule('personal')" to="/dashboard/personal" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/personal') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
@@ -40,7 +40,7 @@
           <span class="nav-label">Personal</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('asociados')" to="/dashboard/asociados" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/asociados') }">
+        <RouterLink v-if="canSeeModule('asociados')" to="/dashboard/asociados" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/asociados') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
@@ -49,7 +49,7 @@
           <span class="nav-label">Asociados</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('organos')" to="/dashboard/organos" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/organos') }">
+        <RouterLink v-if="canSeeModule('organos')" to="/dashboard/organos" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/organos') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -59,7 +59,7 @@
           <span class="nav-label">Órganos Sociales</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('comites')" to="/dashboard/comites" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/comites') }">
+        <RouterLink v-if="canSeeModule('comites')" to="/dashboard/comites" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/comites') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5z"/>
@@ -69,7 +69,7 @@
           <span class="nav-label">Comités</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('asambleas')" to="/dashboard/asambleas" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/asambleas') }">
+        <RouterLink v-if="canSeeModule('asambleas')" to="/dashboard/asambleas" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/asambleas') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -80,7 +80,7 @@
           <span class="nav-label">Asambleas</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('votaciones')" to="/dashboard/votaciones" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/votaciones') }">
+        <RouterLink v-if="canSeeModule('votaciones')" to="/dashboard/votaciones" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/votaciones') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
@@ -89,7 +89,7 @@
           <span class="nav-label">Votaciones</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('finanzas')" to="/dashboard/finanzas" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/finanzas') }">
+        <RouterLink v-if="canSeeModule('finanzas')" to="/dashboard/finanzas" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/finanzas') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
@@ -98,7 +98,7 @@
           <span class="nav-label">Finanzas</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('creditos')" to="/dashboard/creditos" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/creditos') }">
+        <RouterLink v-if="canSeeModule('creditos')" to="/dashboard/creditos" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/creditos') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
@@ -107,7 +107,7 @@
           <span class="nav-label">Créditos</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('riesgos')" to="/dashboard/riesgos" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/riesgos') }">
+        <RouterLink v-if="canSeeModule('riesgos')" to="/dashboard/riesgos" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/riesgos') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -117,7 +117,7 @@
           <span class="nav-label">Riesgos</span>
         </RouterLink>
 
-        <RouterLink v-if="isModuleActive('reportes')" to="/dashboard/reportes" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/reportes') }">
+        <RouterLink v-if="canSeeModule('reportes')" to="/dashboard/reportes" class="nav-item" :class="{ 'nav-item--active': isActive('/dashboard/reportes') }">
           <span class="nav-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
@@ -126,6 +126,7 @@
           <span class="nav-label">Reportes</span>
         </RouterLink>
 
+        <template v-if="canSeeModule('configuracion')">
         <div class="nav-section-label">Sistema</div>
 
         <!-- Configuración (expandable) -->
@@ -162,6 +163,7 @@
             </RouterLink>
           </div>
         </Transition>
+        </template>
 
       </nav>
 
@@ -210,26 +212,6 @@
     <!-- ─── MAIN AREA ─── -->
     <div class="main-area" :class="{ 'main-area--collapsed': sidebarCollapsed }">
 
-      <!-- Topbar (desktop only) -->
-      <div class="content-topbar" :class="{ 'content-topbar--dark': isDark }">
-        <div class="topbar-actions">
-          <div class="plan-switcher">
-            <button class="plan-btn" :class="{ 'plan-btn--active': currentPlan === 'basico' }" @click="setPlan('basico')">Básico</button>
-            <button class="plan-btn" :class="{ 'plan-btn--active': currentPlan === 'pro' }" @click="setPlan('pro')">Pro</button>
-            <button class="plan-btn" :class="{ 'plan-btn--active': currentPlan === 'empresarial' }" @click="setPlan('empresarial')">Empresarial</button>
-          </div>
-          <button class="cotizacion-btn" @click="showCotizacion = true">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            Generar cotización
-          </button>
-        </div>
-      </div>
-
       <!-- Mobile topbar -->
       <div class="mobile-header">
         <button class="mobile-menu-btn" @click="mobileOpen = !mobileOpen">
@@ -240,21 +222,6 @@
           <img src="/icono.png" alt="CoopeSaaS" class="mobile-brand-icon" />
           <span><strong>Coope</strong>SaaS</span>
         </RouterLink>
-        <div class="mobile-topbar-actions">
-          <div class="mobile-plan-switcher">
-            <button :class="{ 'mplan--active': currentPlan === 'basico' }" @click="setPlan('basico')">B</button>
-            <button :class="{ 'mplan--active': currentPlan === 'pro' }" @click="setPlan('pro')">P</button>
-            <button :class="{ 'mplan--active': currentPlan === 'empresarial' }" @click="setPlan('empresarial')">E</button>
-          </div>
-          <button class="mobile-cotizacion-btn" @click="showCotizacion = true" title="Generar cotización">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            Cotizar
-          </button>
-        </div>
       </div>
 
       <!-- Page content -->
@@ -269,46 +236,37 @@
       <div v-if="mobileOpen" class="mobile-overlay" @click="mobileOpen = false"></div>
     </Transition>
 
-    <!-- Cotización modal -->
-    <CotizacionModal v-if="showCotizacion" @close="showCotizacion = false" />
-
   </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useRole } from '../composables/useRole.js'
-import { useModules } from '../composables/useModules.js'
 import { useAuth } from '../composables/useAuth.js'
-import CotizacionModal from '../components/CotizacionModal.vue'
+import { getEnabledModules } from '../composables/useRolePermissions.js'
 
 const route = useRoute()
 const router = useRouter()
 
-const { isAdmin, isOperador, isAsociado, isConsejo, roleInfo } = useRole()
-const { isModuleActive, setModules } = useModules()
-
-const PLAN_MODULES = {
-  basico:      ['personal', 'organos', 'asociados', 'asambleas'],
-  pro:         ['personal', 'organos', 'asociados', 'asambleas', 'comites', 'votaciones', 'reportes'],
-  empresarial: ['personal', 'organos', 'asociados', 'asambleas', 'comites', 'votaciones', 'reportes', 'riesgos', 'finanzas', 'creditos'],
-}
-
-const currentPlan = ref(localStorage.getItem('coopesaas-plan') || 'basico')
-
-function setPlan(key) {
-  currentPlan.value = key
-  localStorage.setItem('coopesaas-plan', key)
-  setModules(PLAN_MODULES[key])
-}
-const { fullName, userEmail, initials, clearUser } = useAuth()
+const { fullName, userEmail, initials, clearUser, currentUser } = useAuth()
 
 const isDark = ref(false)
-const showCotizacion = ref(false)
 const mobileOpen = ref(false)
 const configOpen = ref(false)
 const sidebarCollapsed = ref(false)
+const enabledModules = ref(new Set())
+
+function canSeeModule(key) {
+  return enabledModules.value.has(key)
+}
+
+watch(
+  () => currentUser.value?.profile?.role,
+  async (role) => {
+    enabledModules.value = role ? await getEnabledModules(role) : new Set()
+  },
+  { immediate: true },
+)
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -358,9 +316,6 @@ onMounted(() => {
   if (saved === '1') { isDark.value = true; document.documentElement.classList.add('dark') }
   const savedSidebar = localStorage.getItem('coopesaas-sidebar')
   if (savedSidebar === '1') sidebarCollapsed.value = true
-  const savedPlan = localStorage.getItem('coopesaas-plan') || 'basico'
-  currentPlan.value = savedPlan
-  setModules(PLAN_MODULES[savedPlan])
 })
 
 onUnmounted(() => {
@@ -684,135 +639,6 @@ onUnmounted(() => {
   color: #FF8080;
 }
 
-/* ── Content topbar (plan switcher, desktop) ── */
-.content-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 8px 28px;
-  background: white;
-  border-bottom: 1px solid #E8EEF4;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 140;
-}
-.content-topbar--dark { background: #1D293D; border-color: #3D5069; }
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.plan-switcher {
-  display: inline-flex;
-  border: 1.5px solid #CBD5E1;
-  border-radius: 20px;
-  overflow: hidden;
-}
-
-.plan-btn {
-  padding: 5px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #4A7090;
-  background: transparent;
-  border: none;
-  border-right: 1px solid #CBD5E1;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-.plan-btn:last-child { border-right: none; }
-.plan-btn:hover { background: #EEF4FA; color: #133C65; }
-.plan-btn--active { background: #133C65; color: white; }
-
-.cotizacion-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 16px;
-  border: 1.5px solid #E8A31C;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #C47F0C;
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-.cotizacion-btn:hover { background: #E8A31C; color: white; }
-
-/* Mobile actions group */
-.mobile-topbar-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.mobile-icon-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1.5px solid #CBD5E1;
-  background: transparent;
-  color: #4A7090;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  flex-shrink: 0;
-}
-.mobile-icon-btn:hover { background: #133C65; color: white; border-color: #133C65; }
-
-/* Mobile plan switcher */
-.mobile-plan-switcher {
-  display: inline-flex;
-  border: 1.5px solid #CBD5E1;
-  border-radius: 14px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.mobile-plan-switcher button {
-  padding: 4px 9px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #4A7090;
-  background: transparent;
-  border: none;
-  border-right: 1px solid #CBD5E1;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.mobile-plan-switcher button:last-child { border-right: none; }
-.mobile-plan-switcher button:hover { background: #EEF4FA; }
-.mobile-plan-switcher button.mplan--active { background: #133C65; color: white; }
-
-/* Mobile cotización button */
-.mobile-cotizacion-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 16px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  border: 1.5px solid #E8A31C;
-  color: #C47F0C;
-  background: transparent;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.mobile-cotizacion-btn:hover { background: #E8A31C; color: white; }
-
 /* ── Sidebar collapsed (desktop) ────────── */
 .sidebar--collapsed { width: 64px; }
 .sidebar--collapsed .brand-name { display: none; }
@@ -911,7 +737,6 @@ onUnmounted(() => {
   .sidebar--open { transform: translateX(0); }
   .sidebar-toggle { display: none; }
   .main-area { margin-left: 0 !important; }
-  .content-topbar { display: none; }
   .mobile-header { display: flex; }
   .page-content { padding: 16px; }
 }

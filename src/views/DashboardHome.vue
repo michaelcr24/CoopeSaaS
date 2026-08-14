@@ -5,12 +5,8 @@
     <div class="page-header">
       <div>
         <h2 class="page-title">Bienvenido, {{ firstName }}</h2>
-        <p class="page-subtitle">{{ roleInfo.name === 'Operador' ? 'Tu resumen de actividades del día' : 'Resumen general de tu cooperativa' }}</p>
+        <p class="page-subtitle">Resumen general de tu cooperativa</p>
       </div>
-      <button v-if="isOperador" class="btn-checkin" @click="registrarEntrada">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        {{ checkinDone ? '✓ Entrada registrada' : 'Registrar entrada' }}
-      </button>
     </div>
 
     <!-- Stat cards — fila única -->
@@ -132,13 +128,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRole } from '../composables/useRole.js'
 import { useAuth } from '../composables/useAuth.js'
 
-const { isOperador, roleInfo } = useRole()
 const { firstName } = useAuth()
-const checkinDone = ref(false)
-function registrarEntrada() { checkinDone.value = true }
 
 /* ── Stat cards ─────────────────────────── */
 const statCards = [

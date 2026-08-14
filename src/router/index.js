@@ -1,10 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-const LandingPage = () => import('../views/LandingPage.vue')
 const LoginPage = () => import('../views/LoginPage.vue')
-const PricingView = () => import('../views/PricingView.vue')
-const AboutView = () => import('../views/AboutView.vue')
-const ModuleSelectorView = () => import('../views/ModuleSelectorView.vue')
 const DashboardLayout = () => import('../layouts/DashboardLayout.vue')
 const DashboardHome = () => import('../views/DashboardHome.vue')
 const PersonalView = () => import('../views/PersonalView.vue')
@@ -21,30 +17,26 @@ const ConfiguracionView = () => import('../views/ConfiguracionView.vue')
 const RolesView = () => import('../views/RolesView.vue')
 
 const routes = [
-  { path: '/', component: LandingPage, meta: { title: 'CoopeSaaS — Gestión Cooperativa', public: true } },
-  { path: '/planes', component: PricingView, meta: { title: 'Planes — CoopeSaaS', public: true } },
-  { path: '/precios', redirect: '/planes' },
-  { path: '/nosotros', component: AboutView, meta: { title: 'Nosotros — CoopeSaaS', public: true } },
+  { path: '/', redirect: '/login' },
   { path: '/login', component: LoginPage, meta: { title: 'Iniciar sesión — CoopeSaaS', public: true } },
-  { path: '/modulos', component: ModuleSelectorView, meta: { title: 'Configurar módulos — CoopeSaaS' } },
   {
     path: '/dashboard',
     component: DashboardLayout,
     meta: { requiresAuth: true },
     children: [
       { path: '', component: DashboardHome, meta: { title: 'Inicio — CoopeSaaS' } },
-      { path: 'personal', component: PersonalView, meta: { title: 'Personal — CoopeSaaS' } },
-      { path: 'asociados', component: AsociadosView, meta: { title: 'Asociados — CoopeSaaS' } },
-      { path: 'organos', component: OrganosView, meta: { title: 'Órganos Sociales — CoopeSaaS' } },
-      { path: 'comites', component: ComitesView, meta: { title: 'Comités — CoopeSaaS' } },
-      { path: 'asambleas', component: AsambleasView, meta: { title: 'Asambleas — CoopeSaaS' } },
-      { path: 'votaciones', component: VotacionesView, meta: { title: 'Votaciones — CoopeSaaS' } },
-      { path: 'finanzas', component: FinanzasView, meta: { title: 'Finanzas — CoopeSaaS' } },
-      { path: 'creditos', component: CreditosView, meta: { title: 'Créditos — CoopeSaaS' } },
-      { path: 'riesgos', component: RiesgosView, meta: { title: 'Riesgos — CoopeSaaS' } },
-      { path: 'reportes', component: ReportesView, meta: { title: 'Reportes — CoopeSaaS' } },
-      { path: 'configuracion', component: ConfiguracionView, meta: { title: 'Configuración — CoopeSaaS' } },
-      { path: 'configuracion/roles', component: RolesView, meta: { title: 'Roles — CoopeSaaS' } },
+      { path: 'personal', component: PersonalView, meta: { title: 'Personal — CoopeSaaS', module: 'personal' } },
+      { path: 'asociados', component: AsociadosView, meta: { title: 'Asociados — CoopeSaaS', module: 'asociados' } },
+      { path: 'organos', component: OrganosView, meta: { title: 'Órganos Sociales — CoopeSaaS', module: 'organos' } },
+      { path: 'comites', component: ComitesView, meta: { title: 'Comités — CoopeSaaS', module: 'comites' } },
+      { path: 'asambleas', component: AsambleasView, meta: { title: 'Asambleas — CoopeSaaS', module: 'asambleas' } },
+      { path: 'votaciones', component: VotacionesView, meta: { title: 'Votaciones — CoopeSaaS', module: 'votaciones' } },
+      { path: 'finanzas', component: FinanzasView, meta: { title: 'Finanzas — CoopeSaaS', module: 'finanzas' } },
+      { path: 'creditos', component: CreditosView, meta: { title: 'Créditos — CoopeSaaS', module: 'creditos' } },
+      { path: 'riesgos', component: RiesgosView, meta: { title: 'Riesgos — CoopeSaaS', module: 'riesgos' } },
+      { path: 'reportes', component: ReportesView, meta: { title: 'Reportes — CoopeSaaS', module: 'reportes' } },
+      { path: 'configuracion', component: ConfiguracionView, meta: { title: 'Configuración — CoopeSaaS', module: 'configuracion' } },
+      { path: 'configuracion/roles', component: RolesView, meta: { title: 'Roles — CoopeSaaS', module: 'configuracion' } },
     ],
   },
 ]
@@ -75,5 +67,13 @@ router.beforeEach(async (to) => {
 
   if (to.path === '/login' && currentUser.value) {
     return { path: '/dashboard' }
+  }
+
+  if (to.meta.module && currentUser.value) {
+    const { getEnabledModules } = await import('../composables/useRolePermissions.js')
+    const allowed = await getEnabledModules(currentUser.value.profile?.role)
+    if (!allowed.has(to.meta.module)) {
+      return { path: '/dashboard' }
+    }
   }
 })
