@@ -7,10 +7,10 @@
         <p class="page-subtitle">Comités especializados, reuniones y acuerdos</p>
       </div>
       <div class="header-actions">
-        <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(comites,[{key:'nombre',label:'Comité'},{key:'objetivo',label:'Objetivo'},{key:'ultimaReunion',label:'Última reunión'},{key:'proximaReunion',label:'Próxima reunión'},{key:'estado',label:'Estado'}],'comites')">
+        <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(comites,[{key:'nombre',label:'Comité'},{key:'objetivo',label:'Objetivo'},{key:'ultimaReunion',label:'Última reunión'},{key:'proximaReunion',label:'Próxima reunión'},{key:'estado',label:'Estado'}],'comites')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
         </button>
-        <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Comités')">
+        <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(comites,[{key:'nombre',label:'Comité'},{key:'objetivo',label:'Objetivo'},{key:'ultimaReunion',label:'Última reunión'},{key:'proximaReunion',label:'Próxima reunión'},{key:'estado',label:'Estado'}],'Comités')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
         </button>
         <button class="btn-primary" @click="openModal('nuevo')">
@@ -313,7 +313,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import DatePicker from '../components/DatePicker.vue'
-import { exportCSV, exportPDF } from '../composables/useExport.js'
+import { exportExcel, exportPDF } from '../composables/useExport.js'
 
 /* ── Asociados (mock) ───────────────────── */
 const asociados = [

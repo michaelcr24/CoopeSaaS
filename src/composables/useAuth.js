@@ -35,7 +35,7 @@ async function withProfile(user) {
   if (!user) return null
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, cooperativa_members(cooperativa_id)')
+    .select('*, cooperativa_members(cooperativa_id, cooperativas(nombre))')
     .eq('id', user.id)
     .maybeSingle()
   return { ...user, profile }
@@ -101,6 +101,7 @@ export function useAuth() {
   const userEmail = computed(() => _user.value?.email || '')
 
   const cooperativaId = computed(() => _user.value?.profile?.cooperativa_members?.[0]?.cooperativa_id ?? null)
+  const cooperativaNombre = computed(() => _user.value?.profile?.cooperativa_members?.[0]?.cooperativas?.nombre ?? null)
 
   const initials = computed(() => {
     const parts = fullName.value.split(' ').filter(Boolean)
@@ -116,6 +117,7 @@ export function useAuth() {
     firstName,
     userEmail,
     cooperativaId,
+    cooperativaNombre,
     initials,
     setUser,
     clearUser,

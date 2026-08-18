@@ -7,7 +7,17 @@
       </div>
     </div>
 
-    <div class="config-grid">
+    <TabNav v-model="activeTab" :tabs="tabs" />
+
+    <div v-if="activeTab === 'personal'" class="catalogos-grid">
+      <CatalogList v-for="t in TIPOS_CATALOGO" :key="t.key" :tipo="t.key" :titulo="t.label" />
+    </div>
+
+    <div v-else-if="activeTab === 'feriados'" class="catalogos-grid">
+      <FeriadosList />
+    </div>
+
+    <div v-else class="config-grid">
       <div class="config-card">
         <div class="config-card-header">
           <div class="config-icon">
@@ -79,7 +89,18 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
+import { ref, reactive } from 'vue'
+import TabNav from '../components/TabNav.vue'
+import CatalogList from '../components/CatalogList.vue'
+import FeriadosList from '../components/FeriadosList.vue'
+import { TIPOS_CATALOGO } from '../composables/useCatalogosPersonal.js'
+
+const tabs = [
+  { key: 'general', label: 'General' },
+  { key: 'personal', label: 'Personal' },
+  { key: 'feriados', label: 'Feriados' },
+]
+const activeTab = ref('general')
 
 const notifications = reactive([
   { key: 'asamblea', name: 'Convocatorias de asamblea', desc: 'Enviar notificación por correo al programar', enabled: true },
@@ -100,6 +121,12 @@ const notifications = reactive([
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
+}
+
+.catalogos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 .config-card {
