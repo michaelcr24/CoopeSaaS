@@ -440,3 +440,125 @@ export async function exportExpedientePDF(empleado, data = {}) {
   drawAllFooters(doc, drawFooter)
   doc.save(`${sanitizeFilename(title)}.pdf`)
 }
+
+/**
+ * Exporta el informe individual de una evaluación de desempeño 360°: datos
+ * del colaborador, resultado final, desglose por sección, el detalle de
+ * cada participante/evaluador y una sección de firmas.
+ * @param {Object} asignacion   - objeto mapeado (mapAsignacionRow) de useEvaluaciones.js
+ * @param {Object} evaluacion   - objeto mapeado (mapEvaluacionRow), para nombre/periodo/método
+ * @param {Array}  secciones    - secciones mapeadas (mapSeccionRow)
+ * @param {Array}  participantes - participantes mapeados (mapParticipanteRow)
+ * @param {Object} empleadoInfo - { name, codigo, departamento, puesto } (opcional)
+ */
+export async function exportInformeEvaluacion(asignacion, evaluacion, secciones, participantes, empleadoInfo = {}) {
+  if (!asignacion) return
+
+  const { cooperativaNombre } = useAuth()
+  const logo = await getLogoInfo()
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const fecha = new Date().toLocaleDateString('es-CR', { year: 'numeric', month: 'long', day: 'numeric' })
+  const title = `Informe de evaluación — ${empleadoInfo.name || asignacion.name}`
+  const { drawHeader, drawFooter } = makeHeaderFooter(doc, { title, cooperativaNombre: cooperativaNombre.value, logo, pageWidth, pageHeight, fecha })
+
+  const MARGIN_TOP = 38
+  const MARGIN_BOTTOM = 22
+  let y = MARGIN_TOP
+  drawHeader()
+
+  function ensureSpace(needed) {
+    if (y + needed > pageHeight - MARGIN_BOTTOM) {
+      doc.addPage()
+      drawHeader()
+      y = MARGIN_TOP
+    }
+  }
+
+  function drawFieldGrid(fields) {
+    const colWidth = (pageWidth - 28) / 2
+    for (let i = 0; i < fields.length; i += 2) {
+      ensureSpace(13)
+      fields.slice(i, i + 2).forEach((f, idx) => {
+        const x = 14 + idx * colWidth
+        doc.setFontSize(7.5); doc.setTextColor(120); doc.text(f.label, x, y)
+        doc.setFontSize(9.5); doc.setTextColor(20); doc.text(String(f.value ?? '—') || '—', x, y + 5)
+      })
+      y += 13
+    }
+    y += 3
+  }
+
+  drawFieldGrid([
+    { label: 'N° de evaluación', value: asignacion.numero },
+    { label: 'Evaluación', value: evaluacion?.nombre },
+    { label: 'Colaborador', value: empleadoInfo.name || asignacion.name },
+    { label: 'Código', value: empleadoInfo.codigo },
+    { label: 'Departamento', value: empleadoInfo.departamento || asignacion.dept },
+    { label: 'Puesto', value: empleadoInfo.puesto || asignacion.puesto },
+    { label: 'Periodo evaluado', value: evaluacion?.periodo },
+    { label: 'Fecha de evaluación', value: asignacion.fechaCompletada ? new Date(asignacion.fechaCompletada).toLocaleDateString('es-CR') : '—' },
+  ])
+
+  ensureSpace(24)
+  doc.setDrawColor(210); doc.line(14, y, pageWidth - 14, y); y += 8
+  doc.setFontSize(9); doc.setTextColor(120); doc.text('Puntaje final', 14, y)
+  doc.setFontSize(18); doc.setFont(undefined, 'bold'); doc.setTextColor(19, 60, 101)
+  doc.text(`${asignacion.puntajeTotal != null ? Math.round(asignacion.puntajeTotal) : '—'} / 100`, 14, y + 9)
+  if (asignacion.resultadoEtiqueta) doc.text(String(asignacion.resultadoEtiqueta).toUpperCase(), pageWidth - 14, y + 9, { align: 'right' })
+  doc.setFont(undefined, 'normal'); doc.setTextColor(0)
+  y += 18
+
+  if (secciones?.length) {
+    ensureSpace(12)
+    doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(19, 60, 101)
+    doc.text('Secciones evaluadas', 14, y)
+    doc.setFont(undefined, 'normal'); doc.setTextColor(0)
+    y += 7
+    autoTable(doc, {
+      head: [['Sección', 'Peso']],
+      body: secciones.map((s) => [s.nombre, `${s.peso}%`]),
+      startY: y,
+      margin: { top: MARGIN_TOP, bottom: MARGIN_BOTTOM },
+      styles: { fontSize: 8.5 },
+      headStyles: { fillColor: [19, 60, 101] },
+      didDrawPage: drawHeader,
+    })
+    y = doc.lastAutoTable.finalY + 10
+  }
+
+  if (participantes?.length) {
+    ensureSpace(12)
+    doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(19, 60, 101)
+    doc.text('Evaluadores', 14, y)
+    doc.setFont(undefined, 'normal'); doc.setTextColor(0)
+    y += 7
+    autoTable(doc, {
+      head: [['Evaluador', 'Tipo', 'Puntaje', 'Comentario']],
+      body: participantes.map((p) => [
+        p.nombreEvaluador, p.tipoEvaluadorLabel,
+        p.puntajeTotal != null ? `${Math.round(p.puntajeTotal)} / 100` : '—',
+        p.comentario || '—',
+      ]),
+      startY: y,
+      margin: { top: MARGIN_TOP, bottom: MARGIN_BOTTOM },
+      styles: { fontSize: 8.5 },
+      headStyles: { fillColor: [19, 60, 101] },
+      didDrawPage: drawHeader,
+    })
+    y = doc.lastAutoTable.finalY + 10
+  }
+
+  ensureSpace(40)
+  const sigY = Math.max(y + 20, pageHeight - 45)
+  doc.setDrawColor(150)
+  doc.line(20, sigY, 90, sigY)
+  doc.line(pageWidth - 90, sigY, pageWidth - 20, sigY)
+  doc.setFontSize(8.5); doc.setTextColor(80)
+  doc.text('Firma del evaluador', 55, sigY + 5, { align: 'center' })
+  doc.text('Firma del colaborador', pageWidth - 55, sigY + 5, { align: 'center' })
+
+  drawAllFooters(doc, drawFooter)
+  doc.save(`${sanitizeFilename(title)}.pdf`)
+}

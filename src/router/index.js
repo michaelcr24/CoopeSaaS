@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const LoginPage = () => import('../views/LoginPage.vue')
+const InvitacionView = () => import('../views/InvitacionView.vue')
 const DashboardLayout = () => import('../layouts/DashboardLayout.vue')
 const DashboardHome = () => import('../views/DashboardHome.vue')
 const PersonalView = () => import('../views/PersonalView.vue')
@@ -19,6 +20,7 @@ const RolesView = () => import('../views/RolesView.vue')
 const routes = [
   { path: '/', redirect: '/login' },
   { path: '/login', component: LoginPage, meta: { title: 'Iniciar sesión — CoopeSaaS', public: true } },
+  { path: '/invitacion/:codigo', component: InvitacionView, meta: { title: 'Invitación — CoopeSaaS', public: true } },
   {
     path: '/dashboard',
     component: DashboardLayout,

@@ -10,11 +10,16 @@
     <TabNav v-model="activeTab" :tabs="tabs" />
 
     <div v-if="activeTab === 'personal'" class="catalogos-grid">
+      <DepartamentosList />
       <CatalogList v-for="t in TIPOS_CATALOGO" :key="t.key" :tipo="t.key" :titulo="t.label" />
     </div>
 
     <div v-else-if="activeTab === 'feriados'" class="catalogos-grid">
       <FeriadosList />
+    </div>
+
+    <div v-else-if="activeTab === 'usuarios'">
+      <UsuariosPanel />
     </div>
 
     <div v-else class="config-grid">
@@ -92,13 +97,16 @@
 import { ref, reactive } from 'vue'
 import TabNav from '../components/TabNav.vue'
 import CatalogList from '../components/CatalogList.vue'
+import DepartamentosList from '../components/DepartamentosList.vue'
 import FeriadosList from '../components/FeriadosList.vue'
+import UsuariosPanel from '../components/UsuariosPanel.vue'
 import { TIPOS_CATALOGO } from '../composables/useCatalogosPersonal.js'
 
 const tabs = [
   { key: 'general', label: 'General' },
   { key: 'personal', label: 'Personal' },
   { key: 'feriados', label: 'Feriados' },
+  { key: 'usuarios', label: 'Usuarios' },
 ]
 const activeTab = ref('general')
 

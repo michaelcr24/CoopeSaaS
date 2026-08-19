@@ -493,11 +493,55 @@
          TAB: ASISTENCIA
     ══════════════════════════════════════════ -->
     <template v-if="activeTab === 'asistencia'">
-      <div class="section-header-row">
-        <div>
-          <h3 class="section-subtitle">Control de asistencia</h3>
-          <p class="section-desc">Registro de entradas, salidas y horas trabajadas</p>
+      <div class="vac-summary">
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.presentes }}</span>
+          <span class="vac-lbl">Presentes</span>
         </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.tardanzas }}</span>
+          <span class="vac-lbl">Tardanzas</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.ausentes }}</span>
+          <span class="vac-lbl">Ausentes</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.porJustificar }}</span>
+          <span class="vac-lbl">Por justificar</span>
+        </div>
+        <div class="export-group">
+          <button class="action-btn" title="Configuración de asistencia" @click="abrirConfiguracionAsistencia">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button v-if="asistConfig.modalidad !== 'marcacion_propia'" class="export-btn export-btn--excel" title="Descargar plantilla" @click="descargarPlantillaAsistencia">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+          </button>
+          <button v-if="asistConfig.modalidad !== 'marcacion_propia'" class="btn-primary vac-btn" @click="abrirCargaAsistencia">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Cargar asistencia
+          </button>
+          <button v-if="asistConfig.modalidad !== 'carga_masiva'" class="btn-primary vac-btn" @click="abrirMarcarAsistencia">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Marcar asistencia
+          </button>
+        </div>
+      </div>
+
+      <div class="filters-bar">
+        <div class="filter-date"><DatePicker v-model="asistFiltroFecha" placeholder="Fecha" /></div>
+        <select v-model="asistFiltroDepto" class="filter-select">
+          <option value="">Todos los departamentos</option>
+          <option v-for="d in departamentos" :key="d.id" :value="d.nombre">{{ d.nombre }}</option>
+        </select>
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="asistFiltroNombre" type="search" placeholder="Nombre del colaborador..." class="search-input" />
+        </div>
+        <select v-model="asistFiltroEstado" class="filter-select">
+          <option value="">Todos los estados</option>
+          <option v-for="e in ESTADOS_ASISTENCIA" :key="e" :value="e">{{ e }}</option>
+        </select>
       </div>
 
       <div class="data-card">
@@ -505,41 +549,37 @@
           <thead>
             <tr>
               <th>Colaborador</th>
-              <th>Fecha</th>
+              <th>Departamento</th>
               <th>Entrada</th>
               <th>Salida</th>
               <th>Horas trabajadas</th>
-              <th>Horas extra</th>
               <th>Estado</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="a in asistencias" :key="a.id">
+            <tr v-for="a in asistenciaFilasFiltradas" :key="a.empleadoId">
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: a.color }">{{ a.initials }}</div>
                   <span>{{ a.name }}</span>
                 </div>
               </td>
-              <td>{{ a.fecha }}</td>
+              <td>{{ a.dept }}</td>
               <td>
-                <span class="time-badge">{{ a.entrada }}</span>
+                <span class="time-badge" v-if="a.entrada">{{ a.entrada }}</span>
+                <span class="time-badge time-badge--pending" v-else>—</span>
               </td>
               <td>
                 <span class="time-badge" v-if="a.salida">{{ a.salida }}</span>
-                <span class="time-badge time-badge--pending" v-else>Pendiente</span>
+                <span class="time-badge time-badge--pending" v-else>—</span>
               </td>
               <td>
-                <span class="font-mono">{{ a.horas ? a.horas + 'h' : '—' }}</span>
+                <span class="font-mono">{{ a.horas != null ? a.horas + 'h' : '—' }}</span>
               </td>
-              <td>
-                <span v-if="a.extra" class="badge badge--blue">+{{ a.extra }}h</span>
-                <span v-else class="text-muted">—</span>
-              </td>
-              <td><span class="badge" :class="`badge--${a.statusClass}`">{{ a.status }}</span></td>
+              <td><span class="badge" :class="`badge--${a.estadoClass}`">{{ a.estado }}</span></td>
             </tr>
-            <tr v-if="asistencias.length === 0">
-              <td colspan="7" class="empty-row">Sin registros de asistencia aún.</td>
+            <tr v-if="asistenciaFilasFiltradas.length === 0">
+              <td colspan="6" class="empty-row">No hay colaboradores para los filtros seleccionados.</td>
             </tr>
           </tbody>
         </table>
@@ -762,17 +802,7 @@
          TAB: EVALUACIONES
     ══════════════════════════════════════════ -->
     <template v-if="activeTab === 'evaluaciones'">
-      <div class="section-header-row">
-        <div>
-          <h3 class="section-subtitle">Evaluación de desempeño</h3>
-          <p class="section-desc">Evaluaciones periódicas por competencias y objetivos</p>
-        </div>
-      </div>
-
-      <div class="exp-empty">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C5D5E5" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        <p>Sin evaluaciones registradas. El módulo de evaluación de desempeño estará disponible próximamente.</p>
-      </div>
+      <EvaluacionesPanel />
     </template>
 
     <!-- ══════════════════════════════════════════
@@ -844,11 +874,29 @@
 
                   <div class="form-section-title" style="margin-top:8px">Dirección</div>
                   <div class="form-row">
-                    <div class="form-field"><label>Provincia</label><input v-model="empForm.provincia" type="text" placeholder="San José" /></div>
-                    <div class="form-field"><label>Cantón</label><input v-model="empForm.canton" type="text" placeholder="Central" /></div>
+                    <div class="form-field">
+                      <label>Provincia</label>
+                      <select v-model="empForm.provincia" @change="empForm.canton = ''; empForm.distrito = ''">
+                        <option value="">Seleccionar</option>
+                        <option v-for="p in PROVINCIAS_CR" :key="p" :value="p">{{ p }}</option>
+                      </select>
+                    </div>
+                    <div class="form-field">
+                      <label>Cantón</label>
+                      <select v-model="empForm.canton" :disabled="!empForm.provincia" @change="empForm.distrito = ''">
+                        <option value="">Seleccionar</option>
+                        <option v-for="c in empCantonesDisponibles" :key="c" :value="c">{{ c }}</option>
+                      </select>
+                    </div>
                   </div>
                   <div class="form-row">
-                    <div class="form-field"><label>Distrito</label><input v-model="empForm.distrito" type="text" placeholder="Carmen" /></div>
+                    <div class="form-field">
+                      <label>Distrito</label>
+                      <select v-model="empForm.distrito" :disabled="!empForm.canton">
+                        <option value="">Seleccionar</option>
+                        <option v-for="d in empDistritosDisponibles" :key="d" :value="d">{{ d }}</option>
+                      </select>
+                    </div>
                     <div class="form-field"><label>Dirección exacta</label><input v-model="empForm.direccionExacta" type="text" placeholder="100m norte de..." /></div>
                   </div>
 
@@ -869,8 +917,10 @@
                     </div>
                     <div class="form-field">
                       <label>Departamento <span class="req">*</span></label>
-                      <input v-model="empForm.departamento" type="text" list="depto-options" placeholder="Administración, Créditos..." required />
-                      <datalist id="depto-options"><option v-for="d in departamentos" :key="d.id" :value="d.nombre" /></datalist>
+                      <select v-model="empForm.departamentoId" required>
+                        <option value="">Seleccionar</option>
+                        <option v-for="d in departamentos" :key="d.id" :value="d.id">{{ d.nombre }}</option>
+                      </select>
                     </div>
                   </div>
                   <div class="form-row">
@@ -909,6 +959,33 @@
                   </div>
                   <div class="form-field"><label>Forma de pago</label>
                     <select v-model="empForm.formaPago"><option value="">Seleccionar</option><option>Depósito bancario</option><option>Efectivo</option><option>Cheque</option></select>
+                  </div>
+
+                  <div class="form-section-title" style="margin-top:8px">Acceso al sistema</div>
+                  <div class="form-field">
+                    <label>Usuario del sistema</label>
+                    <select v-model="empForm.profileId">
+                      <option value="">Sin usuario vinculado</option>
+                      <option v-for="p in profilesDisponibles" :key="p.id" :value="p.id">{{ p.full_name || p.email }}</option>
+                    </select>
+                    <p class="exp-hint">Vincula este colaborador con su cuenta de acceso para que pueda marcar su propia asistencia. Solo aparecen usuarios que aún no están vinculados a otro colaborador.</p>
+
+                    <button v-if="!mostrarInvitarUsuario" type="button" class="exp-link-btn" @click="mostrarInvitarUsuario = true">+ Invitar nuevo usuario para este colaborador</button>
+                    <div v-else class="exp-invitar-box">
+                      <div class="form-row">
+                        <input v-model="invitarEmail" type="email" placeholder="correo@ejemplo.com" />
+                        <button type="button" class="btn-outline" :disabled="invitarEnviando" @click="enviarInvitacionDesdeExpediente">
+                          {{ invitarEnviando ? 'Generando...' : 'Generar enlace' }}
+                        </button>
+                      </div>
+                      <div v-if="invitarError" class="req" style="font-size:12px;">{{ invitarError }}</div>
+                      <div v-if="invitarEnlace" class="usr-link-row">
+                        <input :value="invitarEnlace" readonly @click="$event.target.select()" />
+                        <button type="button" class="action-btn" title="Copiar" @click="copiarEnlaceInvitacion">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div v-if="empFormError" class="req" style="font-size:12.5px;">{{ empFormError }}</div>
@@ -1626,6 +1703,132 @@
             </div>
           </template>
 
+          <!-- Configuración de asistencia -->
+          <template v-if="modal.type === 'asistencia-config'">
+            <h3 class="modal-title">Configuración de asistencia</h3>
+            <p class="modal-subtitle">Define cómo registrará la asistencia esta cooperativa</p>
+            <form class="modal-form" @submit.prevent="guardarConfigAsistenciaForm">
+              <div class="form-field">
+                <label>Modalidad</label>
+                <select v-model="asistConfigForm.modalidad">
+                  <option value="ambas">Carga masiva y marcación propia</option>
+                  <option value="carga_masiva">Solo carga masiva (ya tienen sistema de marcación)</option>
+                  <option value="marcacion_propia">Solo marcación desde el sistema</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Hora de entrada estándar</label><TimePicker v-model="asistConfigForm.horaEntradaEstandar" /></div>
+                <div class="form-field"><label>Hora de salida estándar</label><TimePicker v-model="asistConfigForm.horaSalidaEstandar" /></div>
+              </div>
+              <div class="form-field">
+                <label>Tolerancia de entrada (minutos)</label>
+                <input v-model="asistConfigForm.toleranciaMinutos" type="number" min="0" max="120" />
+              </div>
+              <div v-if="asistConfigError" class="req" style="font-size:12.5px;">{{ asistConfigError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+                <button type="submit" class="btn-primary" :disabled="asistConfigSaving">{{ asistConfigSaving ? 'Guardando...' : 'Guardar' }}</button>
+              </div>
+            </form>
+          </template>
+
+          <!-- Cargar asistencia (carga masiva, en 2 pasos) -->
+          <template v-if="modal.type === 'asistencia-cargar'">
+            <h3 class="modal-title">Cargar asistencia</h3>
+            <p class="modal-subtitle">Paso {{ asistCargaPaso }} de 2</p>
+
+            <template v-if="asistCargaPaso === 1">
+              <div class="asist-dropzone">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7A90A0" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <p>Selecciona el archivo de marcaciones</p>
+                <input type="file" accept=".xlsx,.csv" @change="onArchivoAsistenciaChange" />
+              </div>
+              <p class="exp-hint">Formatos: XLSX o CSV. Columnas: Identificación, Fecha (AAAA-MM-DD), Hora entrada (HH:MM), Hora salida (opcional), Observación (opcional). Descarga la plantilla desde el botón de la pestaña si aún no la tienes.</p>
+              <div v-if="asistCargaError" class="req" style="font-size:12.5px;">{{ asistCargaError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+                <button type="button" class="btn-primary" :disabled="!asistArchivoSeleccionado || asistCargaValidando" @click="validarArchivoAsistencia">
+                  {{ asistCargaValidando ? 'Validando...' : 'Validar archivo' }}
+                </button>
+              </div>
+            </template>
+
+            <template v-else-if="asistCargaPaso === 2">
+              <div class="exp-grid" style="margin-bottom:10px;">
+                <div class="exp-field"><label>Registros encontrados</label><span>{{ asistCargaResultado.total }}</span></div>
+                <div class="exp-field"><label>Válidos</label><span style="color:#1A9152;">{{ asistCargaResultado.validos.length }}</span></div>
+                <div class="exp-field"><label>Con advertencia</label><span style="color:#C47F0C;">{{ asistCargaResultado.advertencias.length }}</span></div>
+                <div class="exp-field"><label>Con error</label><span style="color:#C0392B;">{{ asistCargaResultado.errores.length }}</span></div>
+              </div>
+
+              <div v-if="asistCargaResultado.errores.length" class="asist-issues">
+                <div v-for="(e, i) in asistCargaResultado.errores" :key="'err'+i" class="asist-issue asist-issue--error">
+                  <strong>Fila {{ e.fila }}</strong> — Identificación: {{ e.identificacion }} — {{ e.mensaje }}
+                </div>
+              </div>
+              <div v-if="asistCargaResultado.advertencias.length" class="asist-issues">
+                <div v-for="(a, i) in asistCargaResultado.advertencias" :key="'warn'+i" class="asist-issue asist-issue--warn">
+                  <strong>Fila {{ a.fila }}</strong> — Identificación: {{ a.identificacion }} — {{ a.mensaje }}
+                </div>
+              </div>
+
+              <div v-if="asistCargaError" class="req" style="font-size:12.5px;">{{ asistCargaError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="asistCargaPaso = 1">Volver</button>
+                <button type="button" class="btn-primary" :disabled="!asistCargaResultado.validos.length || asistCargaImportando" @click="confirmarCargaAsistencia">
+                  {{ asistCargaImportando ? 'Importando...' : `Confirmar importación (${asistCargaResultado.validos.length})` }}
+                </button>
+              </div>
+            </template>
+          </template>
+
+          <!-- Marcar asistencia (colaborador sin sistema de marcación propio) -->
+          <template v-if="modal.type === 'asistencia-marcar'">
+            <h3 class="modal-title">Marcar asistencia</h3>
+            <div class="asist-marcar">
+              <template v-if="!miEmpleadoAsistencia">
+                <p class="modal-subtitle">Tu usuario no está vinculado a ningún expediente de colaborador. Contacta a Recursos Humanos.</p>
+              </template>
+              <template v-else>
+                <p class="asist-marcar-saludo">{{ saludoAsistencia }}, {{ miEmpleadoAsistencia.name }}</p>
+                <p class="asist-marcar-fecha">{{ fechaLargaHoy }}</p>
+
+                <template v-if="!marcacionHoyAsistencia?.hora_entrada">
+                  <p class="asist-marcar-reloj">{{ asistReloj }}</p>
+                  <button type="button" class="asist-circulo asist-circulo--verde" :disabled="asistMarcarCargando" @click="confirmarMarcarEntrada">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Marcar entrada</span>
+                  </button>
+                </template>
+
+                <template v-else-if="!marcacionHoyAsistencia?.hora_salida">
+                  <div class="asist-marcar-resultado">
+                    <span v-if="marcacionHoyAsistencia.minutos_tardanza > 0" class="badge badge--yellow">⚠ Tardanza: {{ marcacionHoyAsistencia.minutos_tardanza }} min</span>
+                    <span v-else class="badge badge--green">✓ Entrada puntual</span>
+                    <p>Entrada registrada: <strong>{{ hhmm(marcacionHoyAsistencia.hora_entrada) }}</strong></p>
+                  </div>
+                  <button type="button" class="asist-circulo asist-circulo--rojo" :disabled="asistMarcarCargando" @click="confirmarMarcarSalida">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Marcar salida</span>
+                  </button>
+                </template>
+
+                <template v-else>
+                  <div class="asist-marcar-resultado">
+                    <p>✓ Jornada completada</p>
+                    <p>Entrada: <strong>{{ hhmm(marcacionHoyAsistencia.hora_entrada) }}</strong> · Salida: <strong>{{ hhmm(marcacionHoyAsistencia.hora_salida) }}</strong></p>
+                    <p v-if="horasTrabajadasHoy != null">Horas trabajadas: <strong>{{ horasTrabajadasHoy }}h</strong></p>
+                  </div>
+                </template>
+
+                <div v-if="asistMarcarError" class="req" style="font-size:12.5px; margin-top:10px;">{{ asistMarcarError }}</div>
+              </template>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+            </div>
+          </template>
+
           <!-- Nueva capacitación -->
           <template v-if="modal.type === 'capacitacion'">
             <h3 class="modal-title">Nueva capacitación</h3>
@@ -1706,14 +1909,19 @@ import { useAuth } from '../composables/useAuth.js'
 import { usePersonal } from '../composables/usePersonal.js'
 import { useCatalogosPersonal } from '../composables/useCatalogosPersonal.js'
 import { useDocumentos, estadoVencimiento } from '../composables/useDocumentos.js'
+import { useFeriados } from '../composables/useFeriados.js'
+import { useInvitaciones } from '../composables/useInvitaciones.js'
+import EvaluacionesPanel from '../components/EvaluacionesPanel.vue'
 import { isSupabaseConfigured } from '../lib/supabase.js'
 import DatePicker from '../components/DatePicker.vue'
 import TimePicker from '../components/TimePicker.vue'
+import { PROVINCIAS_CR, cantonesDe, distritosDe } from '../data/ubicacionesCR.js'
+import { readXlsxRows } from '../utils/xlsxReader.js'
 
 const { cooperativaId, currentUser } = useAuth()
 const {
   listDepartamentos, listCargos, listEmpleados, createEmpleado, updateEmpleado, eliminarEmpleado,
-  findOrCreateDepartamento, findOrCreateCargo,
+  findOrCreateCargo, listPerfilesCooperativa,
   listCapacitaciones, crearCapacitacion,
   listPermisosSolicitudes, crearPermisoSolicitud, actualizarPermisoSolicitud, resolverPermisoSolicitud, eliminarPermisoSolicitud,
   subirDocumentoPermiso, eliminarDocumentoPermiso,
@@ -1731,8 +1939,13 @@ const {
   listMovimientos, crearMovimiento,
   listSalidas, registrarSalida,
   listAuditoria, registrarAuditoria,
+  getConfiguracionAsistencia, guardarConfiguracionAsistencia, calcularTardanza,
+  getMiEmpleado, getMarcacionDeHoy, marcarEntrada, marcarSalida,
+  listMarcaciones, importarMarcacionesMasivo, confirmarImportacionMasiva,
 } = usePersonal()
 const { listByTipo: listCatalogo, findOrCreate: findOrCreateCatalogo } = useCatalogosPersonal()
+const { listFeriados } = useFeriados()
+const { crearInvitacion } = useInvitaciones()
 const { listDocumentos, subirDocumento, eliminarDocumento, getUrlDescarga, eliminarArchivosDelEmpleado } = useDocumentos()
 const vencimientoInfo = estadoVencimiento
 
@@ -1849,11 +2062,14 @@ const EMPTY_EMP_FORM = {
   identificacion: '', fechaNacimiento: '', nacionalidad: 'Costarricense', genero: 'Femenino', estadoCivil: '',
   telefono: '', telefonoSecundario: '', correoPersonal: '', correoInstitucional: '', correo: '',
   provincia: '', canton: '', distrito: '', direccionExacta: '', direccion: '',
-  puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'Tiempo completo',
+  puesto: '', departamentoId: '', fechaIngreso: '', tipoContrato: 'Tiempo completo',
   salario: '', activo: 'true',
   codigoInterno: '', jefeInmediatoId: '', sedeId: '', jornadaId: '', horarioId: '', moneda: 'CRC', formaPago: '',
+  profileId: '',
 }
 const empForm = reactive({ ...EMPTY_EMP_FORM })
+const empCantonesDisponibles = computed(() => cantonesDe(empForm.provincia))
+const empDistritosDisponibles = computed(() => distritosDe(empForm.provincia, empForm.canton))
 
 /* ── Expediente: pestañas dentro del modal ── */
 const EXPEDIENTE_TABS = [
@@ -1928,6 +2144,10 @@ function openModal(type, data = null) {
   modal.type = type
   modal.data = data
   expedienteTab.value = 'personal'
+  mostrarInvitarUsuario.value = false
+  invitarEmail.value = ''
+  invitarError.value = null
+  invitarEnlace.value = ''
   if (type === 'editar' && data) {
     Object.assign(empForm, {
       nombre: data.name || '',
@@ -1950,7 +2170,7 @@ function openModal(type, data = null) {
       direccionExacta: data.direccionExacta || '',
       direccion: data.direccion || '',
       puesto: data.role || '',
-      departamento: data.dept || '',
+      departamentoId: data.departamentoId || '',
       fechaIngreso: ddmmyyyyToInputDate(data.date),
       tipoContrato: data.tipoContrato || 'Tiempo completo',
       salario: data.salario || '',
@@ -1962,6 +2182,7 @@ function openModal(type, data = null) {
       horarioId: data.horarioId || '',
       moneda: data.moneda || 'CRC',
       formaPago: data.formaPago || '',
+      profileId: data.profileId || '',
     })
   } else if (type === 'nuevo') {
     Object.assign(empForm, EMPTY_EMP_FORM)
@@ -1988,7 +2209,7 @@ async function guardarEmpleado() {
           correo: empForm.correo,
           direccion: empForm.direccion,
           role: empForm.puesto,
-          dept: empForm.departamento,
+          dept: departamentos.value.find((d) => d.id === empForm.departamentoId)?.nombre || emp.dept,
           date: inputDateToDdmmyyyy(empForm.fechaIngreso) || emp.date,
           tipoContrato: empForm.tipoContrato,
           salario: empForm.salario,
@@ -2009,7 +2230,7 @@ async function guardarEmpleado() {
         correo: empForm.correo,
         direccion: empForm.direccion,
         role: empForm.puesto,
-        dept: empForm.departamento,
+        dept: departamentos.value.find((d) => d.id === empForm.departamentoId)?.nombre || '',
         date: inputDateToDdmmyyyy(empForm.fechaIngreso) || '—',
         tipoContrato: empForm.tipoContrato,
         salario: empForm.salario,
@@ -2023,12 +2244,11 @@ async function guardarEmpleado() {
   empFormSaving.value = true
   empFormError.value = null
 
-  const { data: depto, error: deptoErr } = await findOrCreateDepartamento(cooperativaId.value, empForm.departamento)
-  if (deptoErr) { empFormSaving.value = false; empFormError.value = deptoErr.message; return }
-  const { data: cargo, error: cargoErr } = await findOrCreateCargo(cooperativaId.value, empForm.puesto, depto?.id)
+  const deptoId = empForm.departamentoId || null
+  const { data: cargo, error: cargoErr } = await findOrCreateCargo(cooperativaId.value, empForm.puesto, deptoId)
   if (cargoErr) { empFormSaving.value = false; empFormError.value = cargoErr.message; return }
 
-  const payload = { ...empForm, cargoId: cargo?.id, departamentoId: depto?.id, activo }
+  const payload = { ...empForm, cargoId: cargo?.id, departamentoId: deptoId, activo }
   const isEdit = modal.type === 'editar' && modal.data
   const before = isEdit ? { cargoId: modal.data.cargoId, departamentoId: modal.data.departamentoId, salario: modal.data.salario } : null
 
@@ -2042,7 +2262,7 @@ async function guardarEmpleado() {
   await Promise.all([loadEmpleados(), loadCatalogos()])
 
   const empleadoId = isEdit ? modal.data.id : saved.id
-  const after = { cargoId: cargo?.id, departamentoId: depto?.id, salario: Number(payload.salario) || 0 }
+  const after = { cargoId: cargo?.id, departamentoId: deptoId, salario: Number(payload.salario) || 0 }
 
   const { error: auditError } = await registrarAuditoria(cooperativaId.value, currentUser.value?.id, isEdit ? 'actualizar' : 'crear', empleadoId, before, after)
   if (auditError) console.warn('[Auditoría] no se pudo registrar:', auditError.message)
@@ -2415,11 +2635,41 @@ async function loadEmpleados() {
 
 const departamentos = ref([])
 const cargos = ref([])
+const profilesCooperativa = ref([])
 
 async function loadCatalogos() {
-  const [{ data: deptos }, { data: cargosData }] = await Promise.all([listDepartamentos(), listCargos()])
+  const [{ data: deptos }, { data: cargosData }, { data: perfiles }] = await Promise.all([listDepartamentos(), listCargos(), listPerfilesCooperativa(cooperativaId.value)])
   departamentos.value = deptos || []
   cargos.value = cargosData || []
+  profilesCooperativa.value = perfiles || []
+}
+
+// Colaboradores cuyo usuario ya está vinculado a otro registro, para no
+// ofrecerlo dos veces en el desplegable de "Usuario del sistema".
+const profileIdsVinculados = computed(() => new Set(employees.value.map((e) => e.profileId).filter((id) => id && id !== empForm.profileId)))
+const profilesDisponibles = computed(() => profilesCooperativa.value.filter((p) => !profileIdsVinculados.value.has(p.id)))
+
+/* ── Invitar usuario desde el expediente ── */
+const mostrarInvitarUsuario = ref(false)
+const invitarEmail = ref('')
+const invitarEnviando = ref(false)
+const invitarError = ref(null)
+const invitarEnlace = ref('')
+
+async function enviarInvitacionDesdeExpediente() {
+  invitarError.value = null
+  if (!invitarEmail.value.trim()) { invitarError.value = 'Escribe un correo.'; return }
+  invitarEnviando.value = true
+  const { data, error } = await crearInvitacion(cooperativaId.value, currentUser.value?.id, {
+    email: invitarEmail.value, role: 'operador', empleadoId: modal.data?.id || null,
+  })
+  invitarEnviando.value = false
+  if (error) { invitarError.value = error.message; return }
+  invitarEnlace.value = `${window.location.origin}/invitacion/${data.codigo}`
+}
+
+async function copiarEnlaceInvitacion() {
+  try { await navigator.clipboard.writeText(invitarEnlace.value) } catch { /* portapapeles no disponible */ }
 }
 
 onMounted(async () => {
@@ -3120,12 +3370,338 @@ async function eliminarIncapacidadConfirmada() {
   await cargarIncapacidades()
 }
 
-// Documentos, asistencia y evaluaciones de desempeño no tienen tabla propia
-// todavia en el esquema (no hay `documentos`, `evaluaciones_desempeno` ni
-// tabla de marcaje diario). En vez de simular datos, estas pestañas muestran
-// un estado vacio honesto hasta que se coordine el modelo de datos
-// correspondiente.
-const asistencias = []
+// Documentos y evaluaciones de desempeño no tienen tabla propia todavia en
+// el esquema (no hay `documentos` ni `evaluaciones_desempeno`). En vez de
+// simular datos, esas pestañas muestran un estado vacio honesto hasta que
+// se coordine el modelo de datos correspondiente.
+
+/* ══════════════════════════════════════════
+   Asistencia (carga masiva + marcación propia)
+   ══════════════════════════════════════════ */
+const ESTADOS_ASISTENCIA = ['Presente', 'Tardanza', 'Ausente', 'Vacaciones', 'Permiso', 'Incapacidad', 'Feriado', 'Día libre', 'Pendiente']
+
+const feriados = ref([])
+async function cargarFeriados() {
+  const { data, error } = await listFeriados()
+  if (!error) feriados.value = data || []
+}
+
+const marcaciones = ref([])
+async function cargarAsistencia() {
+  if (!isSupabaseConfigured()) return
+  const { data, error } = await listMarcaciones({})
+  if (!error) marcaciones.value = data || []
+}
+
+function normalizarConfigAsistencia(c) {
+  return {
+    ...c,
+    hora_entrada_estandar: (c.hora_entrada_estandar || '08:00').slice(0, 5),
+    hora_salida_estandar: (c.hora_salida_estandar || '17:00').slice(0, 5),
+  }
+}
+const asistConfig = ref({ modalidad: 'ambas', hora_entrada_estandar: '08:00', hora_salida_estandar: '17:00', tolerancia_minutos: 15 })
+async function cargarConfigAsistencia() {
+  const { data } = await getConfiguracionAsistencia(cooperativaId.value)
+  if (data) asistConfig.value = normalizarConfigAsistencia(data)
+}
+
+onMounted(() => { cargarAsistencia(); cargarFeriados(); cargarConfigAsistencia() })
+
+function hhmm(t) { return t ? t.slice(0, 5) : '' }
+
+function horasEntre(hhmm1, hhmm2) {
+  const [h1, m1] = hhmm1.split(':').map(Number)
+  const [h2, m2] = hhmm2.split(':').map(Number)
+  const diff = (h2 * 60 + m2) - (h1 * 60 + m1)
+  return diff > 0 ? Math.round((diff / 60) * 10) / 10 : 0
+}
+
+function sumarMinutos(base, minutos) {
+  const [h, m] = base.split(':').map(Number)
+  const total = h * 60 + m + minutos
+  const hh = Math.floor(total / 60) % 24
+  const mm = total % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+const marcacionesPorClave = computed(() => {
+  const map = new Map()
+  marcaciones.value.forEach((m) => map.set(`${m.empleadoId}|${m.fecha}`, m))
+  return map
+})
+
+// Combina la marcación (si existe) con vacaciones/permisos/incapacidades
+// aprobados y feriados para determinar el estado del día de un colaborador,
+// siguiendo la integración descrita en el md (sección 14).
+function estadoDelDia(emp, fechaISO) {
+  const marc = marcacionesPorClave.value.get(`${emp.id}|${fechaISO}`)
+  if (marc && marc.horaEntrada) {
+    const horas = marc.horaSalida ? horasEntre(marc.horaEntrada, marc.horaSalida) : null
+    const tardanza = (marc.minutosTardanza || 0) > 0
+    return {
+      entrada: marc.horaEntrada, salida: marc.horaSalida, horas,
+      estado: tardanza ? 'Tardanza' : 'Presente', estadoClass: tardanza ? 'yellow' : 'green',
+      sinJustificar: tardanza && !marc.observacion,
+    }
+  }
+  const vac = vacaciones.value.find((v) => v.empleadoId === emp.id && v.estado === 'aprobada' && fechaISO >= v.fechaInicioISO && fechaISO <= v.fechaFinISO)
+  if (vac) return { entrada: null, salida: null, horas: null, estado: 'Vacaciones', estadoClass: 'blue-light', sinJustificar: false }
+  const perm = permisos.value.find((p) => p.empleadoId === emp.id && p.estado === 'aprobado' && fechaISO >= p.fechaInicioISO && fechaISO <= p.fechaFinISO)
+  if (perm) return { entrada: null, salida: null, horas: null, estado: 'Permiso', estadoClass: 'blue', sinJustificar: false }
+  const inc = incapacidades.value.find((i) => i.empleadoId === emp.id && (i.estado === 'activa' || i.estado === 'finalizada') && fechaISO >= i.fechaInicioISO && fechaISO <= i.fechaFinISO)
+  if (inc) return { entrada: null, salida: null, horas: null, estado: 'Incapacidad', estadoClass: 'gray', sinJustificar: false }
+  const fer = feriados.value.find((f) => f.fecha === fechaISO && f.activo)
+  if (fer) return { entrada: null, salida: null, horas: null, estado: 'Feriado', estadoClass: 'gray', sinJustificar: false }
+  const dow = new Date(fechaISO + 'T00:00:00').getDay()
+  if (dow === 0 || dow === 6) return { entrada: null, salida: null, horas: null, estado: 'Día libre', estadoClass: 'gray', sinJustificar: false }
+  const hoyISO = new Date().toISOString().slice(0, 10)
+  if (fechaISO === hoyISO) {
+    const limite = sumarMinutos(asistConfig.value.hora_entrada_estandar, asistConfig.value.tolerancia_minutos ?? 15)
+    const ahora = new Date().toTimeString().slice(0, 5)
+    if (ahora < limite) return { entrada: null, salida: null, horas: null, estado: 'Pendiente', estadoClass: 'gray', sinJustificar: false }
+  }
+  return { entrada: null, salida: null, horas: null, estado: 'Ausente', estadoClass: 'red', sinJustificar: false }
+}
+
+const asistFiltroFecha = ref(new Date().toISOString().slice(0, 10))
+const asistFiltroDepto = ref('')
+const asistFiltroNombre = ref('')
+const asistFiltroEstado = ref('')
+
+const asistenciaFilas = computed(() => {
+  const fechaISO = asistFiltroFecha.value || new Date().toISOString().slice(0, 10)
+  return employees.value
+    .filter((e) => e.active)
+    .map((e) => ({
+      empleadoId: e.id,
+      name: nombreCompleto(e),
+      initials: e.initials,
+      color: e.color,
+      dept: e.dept,
+      ...estadoDelDia(e, fechaISO),
+    }))
+})
+
+const asistenciaFilasFiltradas = computed(() => asistenciaFilas.value.filter((a) => {
+  if (asistFiltroDepto.value && a.dept !== asistFiltroDepto.value) return false
+  if (asistFiltroNombre.value && !a.name.toLowerCase().includes(asistFiltroNombre.value.trim().toLowerCase())) return false
+  if (asistFiltroEstado.value && a.estado !== asistFiltroEstado.value) return false
+  return true
+}))
+
+const asistenciaStats = computed(() => {
+  const hoyISO = new Date().toISOString().slice(0, 10)
+  const filasHoy = employees.value.filter((e) => e.active).map((e) => estadoDelDia(e, hoyISO))
+  return {
+    presentes: filasHoy.filter((f) => f.estado === 'Presente' || f.estado === 'Tardanza').length,
+    tardanzas: filasHoy.filter((f) => f.estado === 'Tardanza').length,
+    ausentes: filasHoy.filter((f) => f.estado === 'Ausente').length,
+    porJustificar: filasHoy.filter((f) => f.sinJustificar).length,
+  }
+})
+
+/* ── Configuración de asistencia ── */
+const asistConfigForm = reactive({ modalidad: 'ambas', horaEntradaEstandar: '08:00', horaSalidaEstandar: '17:00', toleranciaMinutos: 15 })
+const asistConfigError = ref(null)
+const asistConfigSaving = ref(false)
+
+function abrirConfiguracionAsistencia() {
+  modal.type = 'asistencia-config'
+  modal.data = null
+  Object.assign(asistConfigForm, {
+    modalidad: asistConfig.value.modalidad || 'ambas',
+    horaEntradaEstandar: asistConfig.value.hora_entrada_estandar,
+    horaSalidaEstandar: asistConfig.value.hora_salida_estandar,
+    toleranciaMinutos: asistConfig.value.tolerancia_minutos ?? 15,
+  })
+  asistConfigError.value = null
+  modal.open = true
+}
+
+async function guardarConfigAsistenciaForm() {
+  asistConfigSaving.value = true
+  asistConfigError.value = null
+  const { data, error } = await guardarConfiguracionAsistencia(cooperativaId.value, asistConfigForm)
+  asistConfigSaving.value = false
+  if (error) { asistConfigError.value = error.message; return }
+  asistConfig.value = normalizarConfigAsistencia(data)
+  modal.open = false
+}
+
+/* ── Carga masiva de asistencia ── */
+const asistCargaPaso = ref(1)
+const asistArchivoSeleccionado = ref(null)
+const asistCargaValidando = ref(false)
+const asistCargaImportando = ref(false)
+const asistCargaError = ref(null)
+const asistCargaResultado = ref({ total: 0, validos: [], advertencias: [], errores: [] })
+
+function abrirCargaAsistencia() {
+  modal.type = 'asistencia-cargar'
+  modal.data = null
+  asistCargaPaso.value = 1
+  asistArchivoSeleccionado.value = null
+  asistCargaError.value = null
+  asistCargaResultado.value = { total: 0, validos: [], advertencias: [], errores: [] }
+  modal.open = true
+}
+
+function onArchivoAsistenciaChange(e) {
+  asistArchivoSeleccionado.value = e.target.files?.[0] || null
+}
+
+// Separador de líneas CSV simple con soporte de campos entre comillas, para
+// no depender de una libreria externa de lectura de Excel/CSV.
+function splitCsvLine(line, delim) {
+  const out = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++ } else { inQuotes = false } }
+      else cur += ch
+    } else if (ch === '"') inQuotes = true
+    else if (ch === delim) { out.push(cur); cur = '' }
+    else cur += ch
+  }
+  out.push(cur)
+  return out.map((s) => s.trim())
+}
+
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '')
+  if (!lines.length) return []
+  const delim = lines[0].includes(';') ? ';' : ','
+  return lines.slice(1).map((line) => splitCsvLine(line, delim))
+}
+
+async function descargarPlantillaAsistencia() {
+  const ejemplo = [{
+    identificacion: '1-1111-1111',
+    fecha: new Date().toISOString().slice(0, 10),
+    horaEntrada: '08:00',
+    horaSalida: '17:00',
+    observacion: '',
+  }]
+  await exportExcel(ejemplo, [
+    { key: 'identificacion', label: 'Identificación' },
+    { key: 'fecha', label: 'Fecha' },
+    { key: 'horaEntrada', label: 'Hora entrada' },
+    { key: 'horaSalida', label: 'Hora salida' },
+    { key: 'observacion', label: 'Observación' },
+  ], 'plantilla_asistencia')
+}
+
+async function validarArchivoAsistencia() {
+  if (!asistArchivoSeleccionado.value) return
+  asistCargaValidando.value = true
+  asistCargaError.value = null
+  try {
+    const nombre = asistArchivoSeleccionado.value.name.toLowerCase()
+    const rows = nombre.endsWith('.xlsx')
+      ? (await readXlsxRows(asistArchivoSeleccionado.value)).slice(1)
+      : parseCSV(await asistArchivoSeleccionado.value.text())
+    const filas = rows.filter((r) => r.some((c) => (c ?? '').toString().trim() !== '')).map((r) => ({
+      identificacion: r[0] || '',
+      fecha: r[1] || '',
+      horaEntrada: r[2] || '',
+      horaSalida: r[3] || '',
+      observacion: r[4] || '',
+    }))
+    const resultado = await importarMarcacionesMasivo(cooperativaId.value, filas)
+    asistCargaResultado.value = { ...resultado, total: filas.length }
+    asistCargaPaso.value = 2
+  } catch (e) {
+    asistCargaError.value = 'No se pudo leer el archivo: ' + e.message
+  }
+  asistCargaValidando.value = false
+}
+
+async function confirmarCargaAsistencia() {
+  asistCargaImportando.value = true
+  asistCargaError.value = null
+  const { error } = await confirmarImportacionMasiva(cooperativaId.value, asistCargaResultado.value.validos, asistConfig.value)
+  asistCargaImportando.value = false
+  if (error) { asistCargaError.value = error.message; return }
+  modal.open = false
+  await cargarAsistencia()
+}
+
+/* ── Marcar asistencia (colaborador sin sistema propio) ── */
+const miEmpleadoAsistencia = ref(null)
+const marcacionHoyAsistencia = ref(null)
+const asistMarcarCargando = ref(false)
+const asistMarcarError = ref(null)
+const asistReloj = ref('')
+let asistRelojTimer = null
+
+function iniciarReloj() {
+  const tick = () => { asistReloj.value = new Date().toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
+  tick()
+  asistRelojTimer = setInterval(tick, 1000)
+}
+function detenerReloj() {
+  if (asistRelojTimer) { clearInterval(asistRelojTimer); asistRelojTimer = null }
+}
+watch(() => modal.open, (open) => { if (!open) detenerReloj() })
+
+const saludoAsistencia = computed(() => {
+  const h = new Date().getHours()
+  if (h < 12) return 'Buenos días'
+  if (h < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+})
+const fechaLargaHoy = computed(() => {
+  const f = new Date().toLocaleDateString('es-CR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return f.charAt(0).toUpperCase() + f.slice(1)
+})
+const horasTrabajadasHoy = computed(() => {
+  if (!marcacionHoyAsistencia.value?.hora_entrada || !marcacionHoyAsistencia.value?.hora_salida) return null
+  return horasEntre(hhmm(marcacionHoyAsistencia.value.hora_entrada), hhmm(marcacionHoyAsistencia.value.hora_salida))
+})
+
+async function abrirMarcarAsistencia() {
+  modal.type = 'asistencia-marcar'
+  modal.data = null
+  asistMarcarError.value = null
+  miEmpleadoAsistencia.value = null
+  marcacionHoyAsistencia.value = null
+  modal.open = true
+  iniciarReloj()
+  const { data: emp } = await getMiEmpleado(currentUser.value?.id)
+  miEmpleadoAsistencia.value = emp
+  if (emp) {
+    const { data: marc } = await getMarcacionDeHoy(emp.id)
+    marcacionHoyAsistencia.value = marc
+  }
+}
+
+async function confirmarMarcarEntrada() {
+  if (!miEmpleadoAsistencia.value) return
+  asistMarcarCargando.value = true
+  asistMarcarError.value = null
+  const horaActual = new Date().toTimeString().slice(0, 5)
+  const minutosTardanza = calcularTardanza(horaActual, asistConfig.value)
+  const { data, error } = await marcarEntrada(cooperativaId.value, miEmpleadoAsistencia.value.id, { horaEntrada: horaActual, minutosTardanza })
+  asistMarcarCargando.value = false
+  if (error) { asistMarcarError.value = error.message; return }
+  marcacionHoyAsistencia.value = data
+  await cargarAsistencia()
+}
+
+async function confirmarMarcarSalida() {
+  if (!marcacionHoyAsistencia.value) return
+  asistMarcarCargando.value = true
+  asistMarcarError.value = null
+  const horaActual = new Date().toTimeString().slice(0, 5)
+  const { data, error } = await marcarSalida(marcacionHoyAsistencia.value.id, horaActual)
+  asistMarcarCargando.value = false
+  if (error) { asistMarcarError.value = error.message; return }
+  marcacionHoyAsistencia.value = data
+  await cargarAsistencia()
+}
 
 /* ── Capacitaciones mock ────────────────── */
 const DEMO_CAPACITACIONES = [
@@ -3560,6 +4136,61 @@ async function guardarCapacitacion() {
   transition: color 0.15s, background 0.15s;
 }
 .adjunto-quitar:hover { color: #C0392B; background: rgba(192,57,43,0.1); }
+
+.exp-link-btn {
+  background: none; border: none; font-size: 12px; font-weight: 600; color: #133C65;
+  cursor: pointer; padding: 4px 0; text-align: left; margin-top: 6px;
+}
+.exp-link-btn:hover { text-decoration: underline; }
+.dark .exp-link-btn { color: #93B8D8; }
+
+.exp-invitar-box { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.usr-link-row { display: flex; gap: 6px; }
+.usr-link-row input {
+  flex: 1; height: 34px; padding: 0 8px; border: 1px solid #D4E4F4; border-radius: 6px;
+  font-size: 12px; background: #F8FAFC; color: #1A2B3C;
+}
+.dark .usr-link-row input { background: #162033; border-color: #3D5069; color: #E2E8F0; }
+
+/* ── Asistencia ─────────────────────────── */
+.asist-dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  border: 1.5px dashed #D4E4F4; border-radius: 12px; padding: 26px 16px; text-align: center;
+}
+.dark .asist-dropzone { border-color: #3D5069; }
+.asist-dropzone p { font-size: 13px; color: #4A6070; margin: 0; }
+.dark .asist-dropzone p { color: #94A3B8; }
+
+.asist-issues { display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; margin-bottom: 10px; }
+.asist-issue { font-size: 12px; padding: 6px 10px; border-radius: 6px; }
+.asist-issue--error { background: rgba(192,57,43,0.08); color: #C0392B; }
+.asist-issue--warn { background: rgba(196,127,12,0.08); color: #8A5800; }
+.dark .asist-issue--error { background: rgba(248,113,113,0.12); color: #F87171; }
+.dark .asist-issue--warn { background: rgba(251,191,36,0.12); color: #FBBF24; }
+
+.asist-marcar { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0 4px; text-align: center; }
+.asist-marcar-saludo { font-size: 15px; font-weight: 700; color: #133C65; margin: 0; }
+.dark .asist-marcar-saludo { color: #E2E8F0; }
+.asist-marcar-fecha { font-size: 12.5px; color: #7A90A0; margin: 0; text-transform: capitalize; }
+.asist-marcar-reloj { font-size: 28px; font-weight: 800; color: #133C65; font-variant-numeric: tabular-nums; margin: 4px 0; }
+.dark .asist-marcar-reloj { color: #E2E8F0; }
+
+.asist-circulo {
+  width: 150px; height: 150px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  color: white; font-size: 13px; font-weight: 700; margin: 10px 0;
+  transition: transform 0.15s;
+}
+.asist-circulo:hover:not(:disabled) { transform: scale(1.03); }
+.asist-circulo:disabled { opacity: 0.6; cursor: not-allowed; }
+.asist-circulo--verde { background: #1A9152; box-shadow: 0 0 0 8px rgba(26,145,82,0.12); }
+.asist-circulo--rojo { background: #C0392B; box-shadow: 0 0 0 8px rgba(192,57,43,0.12); }
+
+.asist-marcar-resultado { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; color: #4A6070; margin: 4px 0; }
+.dark .asist-marcar-resultado { color: #94A3B8; }
+.asist-marcar-resultado p { margin: 0; }
+
+.exp-modal-layout { display: grid; grid-template-columns: 190px 1fr; gap: 20px; margin-top: 8px; }
 .exp-modal-layout { display: grid; grid-template-columns: 190px 1fr; gap: 20px; margin-top: 8px; }
 .exp-tab-list { display: flex; flex-direction: column; gap: 2px; }
 .exp-tab-item {

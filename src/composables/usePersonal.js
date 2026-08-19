@@ -189,6 +189,7 @@ function mapEmpleadoRow(row) {
     moneda: row.moneda || 'CRC',
     formaPago: row.forma_pago || '',
     estadoDetalleId: row.estado_detalle_id || '',
+    profileId: row.profile_id || '',
   }
 }
 
@@ -230,7 +231,23 @@ function mapPermisoRow(row) {
 export function usePersonal() {
   async function listDepartamentos() {
     if (!isSupabaseConfigured()) return { data: [], error: null }
-    return supabase.from('departamentos').select('id, nombre').order('nombre')
+    return supabase.from('departamentos').select('id, nombre, activo').eq('activo', true).order('nombre')
+  }
+
+  // Para el mantenimiento en Configuración: incluye los inactivos, para
+  // poder reactivarlos.
+  async function listDepartamentosTodos() {
+    if (!isSupabaseConfigured()) return { data: [], error: null }
+    return supabase.from('departamentos').select('id, nombre, activo').order('nombre')
+  }
+
+  async function crearDepartamento(cooperativaId, nombre) {
+    if (!nombre?.trim()) return { data: null, error: null }
+    return supabase.from('departamentos').insert({ cooperativa_id: cooperativaId, nombre: nombre.trim() }).select().single()
+  }
+
+  async function toggleDepartamentoActivo(id, activo) {
+    return supabase.from('departamentos').update({ activo }).eq('id', id).select().single()
   }
 
   async function listCargos() {
@@ -238,9 +255,11 @@ export function usePersonal() {
     return supabase.from('cargos').select('id, nombre, departamento_id, salario_base').order('nombre')
   }
 
-  // Los catalogos de departamentos/cargos pueden estar vacios en una coopertiva
-  // nueva; en vez de bloquear el alta de un colaborador, se resuelven u
-  // originan sobre la marcha a partir del nombre escrito/seleccionado.
+  // El catalogo de cargos puede estar vacio en una cooperativa nueva; en vez
+  // de bloquear el alta de un colaborador, se resuelve u origina sobre la
+  // marcha a partir del nombre escrito. Departamento ya no usa este patron
+  // (tiene su propio mantenimiento en Configuracion), pero se deja disponible
+  // por si se necesita en otro flujo.
   async function findOrCreateDepartamento(cooperativaId, nombre) {
     if (!nombre?.trim()) return { data: null, error: null }
     const { data: existente } = await supabase.from('departamentos').select('id').eq('cooperativa_id', cooperativaId).eq('nombre', nombre).maybeSingle()
@@ -302,7 +321,21 @@ export function usePersonal() {
       moneda: payload.moneda || 'CRC',
       forma_pago: payload.formaPago || null,
       estado_detalle_id: payload.estadoDetalleId || null,
+      profile_id: payload.profileId || null,
     }
+  }
+
+  // Lista los usuarios (profiles) de la cooperativa, para vincular un
+  // colaborador con su cuenta de acceso y así poder marcar su propia
+  // asistencia. Un mismo profile solo debería vincularse a un colaborador.
+  async function listPerfilesCooperativa(cooperativaId) {
+    if (!isSupabaseConfigured()) return { data: [], error: null }
+    const { data, error } = await supabase
+      .from('cooperativa_members')
+      .select('profiles(id, full_name, email)')
+      .eq('cooperativa_id', cooperativaId)
+    if (error) return { data: null, error }
+    return { data: data.map((r) => r.profiles).filter(Boolean), error: null }
   }
 
   async function createEmpleado(cooperativaId, payload) {
@@ -723,6 +756,155 @@ export function usePersonal() {
       .single()
   }
 
+  // ── Asistencia (configuración, marcaciones, carga masiva) ──
+  async function getConfiguracionAsistencia(cooperativaId) {
+    if (!isSupabaseConfigured()) return { data: null, error: null }
+    return supabase.from('configuracion_asistencia').select('*').eq('cooperativa_id', cooperativaId).maybeSingle()
+  }
+
+  async function guardarConfiguracionAsistencia(cooperativaId, payload) {
+    return supabase
+      .from('configuracion_asistencia')
+      .upsert({
+        cooperativa_id: cooperativaId,
+        modalidad: payload.modalidad,
+        hora_entrada_estandar: payload.horaEntradaEstandar,
+        hora_salida_estandar: payload.horaSalidaEstandar,
+        tolerancia_minutos: Number(payload.toleranciaMinutos) || 15,
+      }, { onConflict: 'cooperativa_id' })
+      .select()
+      .single()
+  }
+
+  // Compara una hora de entrada (HH:MM) contra la hora estándar + tolerancia
+  // configuradas; devuelve los minutos de tardanza (0 si llegó a tiempo).
+  function calcularTardanza(horaEntrada, config) {
+    if (!horaEntrada || !config?.hora_entrada_estandar) return 0
+    const [h1, m1] = horaEntrada.split(':').map(Number)
+    const [h2, m2] = config.hora_entrada_estandar.split(':').map(Number)
+    const diff = (h1 * 60 + m1) - (h2 * 60 + m2)
+    const tolerancia = config.tolerancia_minutos ?? 15
+    return diff > tolerancia ? diff : 0
+  }
+
+  async function getMiEmpleado(profileId) {
+    if (!isSupabaseConfigured() || !profileId) return { data: null, error: null }
+    const { data, error } = await supabase
+      .from('empleados')
+      .select('*, cargos(nombre), departamentos(nombre)')
+      .eq('profile_id', profileId)
+      .maybeSingle()
+    if (error || !data) return { data: null, error }
+    return { data: mapEmpleadoRow(data), error: null }
+  }
+
+  async function getMarcacionDeHoy(empleadoId) {
+    if (!isSupabaseConfigured()) return { data: null, error: null }
+    const hoy = new Date().toISOString().slice(0, 10)
+    return supabase.from('asistencia_marcaciones').select('*').eq('empleado_id', empleadoId).eq('fecha', hoy).maybeSingle()
+  }
+
+  async function marcarEntrada(cooperativaId, empleadoId, { horaEntrada, minutosTardanza }) {
+    const hoy = new Date().toISOString().slice(0, 10)
+    return supabase
+      .from('asistencia_marcaciones')
+      .upsert({
+        cooperativa_id: cooperativaId,
+        empleado_id: empleadoId,
+        fecha: hoy,
+        hora_entrada: horaEntrada,
+        minutos_tardanza: minutosTardanza,
+        origen: 'manual',
+      }, { onConflict: 'empleado_id,fecha' })
+      .select()
+      .single()
+  }
+
+  async function marcarSalida(id, horaSalida) {
+    return supabase.from('asistencia_marcaciones').update({ hora_salida: horaSalida }).eq('id', id).select().single()
+  }
+
+  function mapMarcacionRow(row) {
+    const nombreCompleto = [row.empleados?.nombre, row.empleados?.primer_apellido, row.empleados?.segundo_apellido].filter(Boolean).join(' ')
+    return {
+      id: row.id,
+      empleadoId: row.empleado_id,
+      name: nombreCompleto || '—',
+      initials: initialsOf(nombreCompleto),
+      color: colorFor(row.empleado_id),
+      fecha: row.fecha,
+      fechaFmt: formatFecha(row.fecha),
+      horaEntrada: row.hora_entrada ? row.hora_entrada.slice(0, 5) : null,
+      horaSalida: row.hora_salida ? row.hora_salida.slice(0, 5) : null,
+      minutosTardanza: row.minutos_tardanza,
+      observacion: row.observacion,
+      origen: row.origen,
+    }
+  }
+
+  async function listMarcaciones({ desde, hasta } = {}) {
+    if (!isSupabaseConfigured()) return { data: [], error: null }
+    let req = supabase.from('asistencia_marcaciones').select('*, empleados(nombre, primer_apellido, segundo_apellido)').order('fecha', { ascending: false })
+    if (desde) req = req.gte('fecha', desde)
+    if (hasta) req = req.lte('fecha', hasta)
+    const { data, error } = await req
+    if (error) return { data: null, error }
+    return { data: data.map(mapMarcacionRow), error: null }
+  }
+
+  // Valida las filas del archivo de carga masiva contra los colaboradores
+  // reales (por cédula) y contra marcaciones ya existentes para esa fecha,
+  // sin escribir nada todavia — el resultado se muestra al usuario antes de
+  // confirmar (paso de validación descrito en el md de Asistencia).
+  async function importarMarcacionesMasivo(cooperativaId, filas) {
+    if (!isSupabaseConfigured()) return { validos: [], advertencias: [], errores: [] }
+    const { data: empleadosData } = await supabase.from('empleados').select('id, cedula').eq('cooperativa_id', cooperativaId)
+    const porCedula = new Map((empleadosData || []).map((e) => [String(e.cedula || '').trim(), e.id]))
+
+    const candidatos = []
+    const errores = []
+    filas.forEach((fila, i) => {
+      const numFila = i + 2
+      const empleadoId = porCedula.get(String(fila.identificacion || '').trim())
+      if (!empleadoId) { errores.push({ fila: numFila, identificacion: fila.identificacion, mensaje: 'Colaborador no encontrado.' }); return }
+      if (!fila.fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fila.fecha)) { errores.push({ fila: numFila, identificacion: fila.identificacion, mensaje: 'Fecha inválida (use AAAA-MM-DD).' }); return }
+      if (!fila.horaEntrada || !/^\d{2}:\d{2}$/.test(fila.horaEntrada)) { errores.push({ fila: numFila, identificacion: fila.identificacion, mensaje: 'Hora de entrada obligatoria o con formato inválido (use HH:MM).' }); return }
+      if (fila.horaSalida && !/^\d{2}:\d{2}$/.test(fila.horaSalida)) { errores.push({ fila: numFila, identificacion: fila.identificacion, mensaje: 'Formato de hora de salida inválido (use HH:MM).' }); return }
+      candidatos.push({ ...fila, empleadoId, fila: numFila })
+    })
+
+    const empleadoIds = [...new Set(candidatos.map((c) => c.empleadoId))]
+    const { data: existentes } = empleadoIds.length
+      ? await supabase.from('asistencia_marcaciones').select('empleado_id, fecha').in('empleado_id', empleadoIds)
+      : { data: [] }
+    const existentesSet = new Set((existentes || []).map((e) => `${e.empleado_id}|${e.fecha}`))
+
+    const validos = []
+    const advertencias = []
+    candidatos.forEach((c) => {
+      if (existentesSet.has(`${c.empleadoId}|${c.fecha}`)) {
+        advertencias.push({ fila: c.fila, identificacion: c.identificacion, mensaje: 'Ya existe una marcación para esa fecha; se sobrescribirá.' })
+      }
+      validos.push(c)
+    })
+
+    return { validos, advertencias, errores }
+  }
+
+  async function confirmarImportacionMasiva(cooperativaId, filasValidas, config) {
+    const rows = filasValidas.map((f) => ({
+      cooperativa_id: cooperativaId,
+      empleado_id: f.empleadoId,
+      fecha: f.fecha,
+      hora_entrada: f.horaEntrada || null,
+      hora_salida: f.horaSalida || null,
+      minutos_tardanza: calcularTardanza(f.horaEntrada, config),
+      observacion: f.observacion || null,
+      origen: 'carga_masiva',
+    }))
+    return supabase.from('asistencia_marcaciones').upsert(rows, { onConflict: 'empleado_id,fecha' }).select()
+  }
+
   async function listPermisos({ vacaciones = false } = {}) {
     if (!isSupabaseConfigured()) return { data: [], error: null }
     let req = supabase.from('permisos_empleado').select('*, empleados(nombre)').order('fecha', { ascending: false })
@@ -790,13 +972,17 @@ export function usePersonal() {
   }
 
   return {
-    listDepartamentos, listCargos, listEmpleados, createEmpleado, updateEmpleado, eliminarEmpleado,
-    findOrCreateDepartamento, findOrCreateCargo,
+    listDepartamentos, listDepartamentosTodos, crearDepartamento, toggleDepartamentoActivo,
+    listCargos, listEmpleados, createEmpleado, updateEmpleado, eliminarEmpleado,
+    findOrCreateDepartamento, findOrCreateCargo, listPerfilesCooperativa,
     listPermisos, crearPermiso, resolverPermiso, listCapacitaciones, crearCapacitacion,
     listPermisosSolicitudes, crearPermisoSolicitud, actualizarPermisoSolicitud, resolverPermisoSolicitud, eliminarPermisoSolicitud,
     subirDocumentoPermiso, eliminarDocumentoPermiso,
     listIncapacidades, crearIncapacidad, actualizarIncapacidad, registrarReincorporacion, anularIncapacidad, eliminarIncapacidad,
     subirDocumentoIncapacidad, eliminarDocumentoIncapacidad,
+    getConfiguracionAsistencia, guardarConfiguracionAsistencia, calcularTardanza,
+    getMiEmpleado, getMarcacionDeHoy, marcarEntrada, marcarSalida,
+    listMarcaciones, importarMarcacionesMasivo, confirmarImportacionMasiva,
     listVacaciones, crearSolicitudVacaciones, actualizarSolicitudVacaciones, resolverVacacionSolicitud, eliminarVacacionSolicitud, listVacacionesPorEmpleado,
     subirDocumentoVacacion, eliminarDocumentoVacacion,
     listContactosEmergencia, crearContactoEmergencia, eliminarContactoEmergencia,
