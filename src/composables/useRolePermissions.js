@@ -28,7 +28,11 @@ export async function getEnabledModules(role) {
   if (!role) return new Set()
   if (_moduleCache.has(role)) return _moduleCache.get(role)
   if (!isSupabaseConfigured()) return new Set()
-  const { data } = await supabase.from('role_permissions').select('module').eq('role', role).eq('can_read', true)
+  const { data, error } = await supabase.from('role_permissions').select('module').eq('role', role).eq('can_read', true)
+  // Si la consulta falló (red intermitente, típico en móvil), no cachear un
+  // Set vacío: dejaría los módulos vacíos para el resto de la sesión aunque
+  // la red se recupere. Se reintenta en la próxima llamada.
+  if (error) return new Set()
   const set = new Set((data || []).map((r) => r.module))
   _moduleCache.set(role, set)
   return set
