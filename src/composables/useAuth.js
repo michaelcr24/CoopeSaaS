@@ -21,21 +21,36 @@ async function initializeAuth() {
 
   const { data: { session } } = await supabase.auth.getSession()
   _session.value = session
+  await aceptarInvitacionPendiente()
   _user.value = await withProfile(session?.user ?? null)
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     _session.value = session
+    await aceptarInvitacionPendiente()
     _user.value = await withProfile(session?.user ?? null)
   })
 
   _loading.value = false
 }
 
+// Si la persona aceptó una invitación pero Supabase exigió confirmar el
+// correo antes de abrir sesión, el código quedó guardado localmente en el
+// paso de registro. En cuanto haya una sesión activa (login o confirmación),
+// completamos la vinculación con la cooperativa automáticamente.
+async function aceptarInvitacionPendiente() {
+  const codigo = localStorage.getItem('coopesaas-pending-invite')
+  if (!codigo) return
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+  const { error } = await supabase.rpc('aceptar_invitacion', { p_codigo: codigo })
+  if (!error) localStorage.removeItem('coopesaas-pending-invite')
+}
+
 async function withProfile(user) {
   if (!user) return null
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, cooperativa_members(cooperativa_id)')
+    .select('*, cooperativa_members(cooperativa_id, cooperativas(nombre))')
     .eq('id', user.id)
     .maybeSingle()
   return { ...user, profile }
@@ -101,6 +116,7 @@ export function useAuth() {
   const userEmail = computed(() => _user.value?.email || '')
 
   const cooperativaId = computed(() => _user.value?.profile?.cooperativa_members?.[0]?.cooperativa_id ?? null)
+  const cooperativaNombre = computed(() => _user.value?.profile?.cooperativa_members?.[0]?.cooperativas?.nombre ?? null)
 
   const initials = computed(() => {
     const parts = fullName.value.split(' ').filter(Boolean)
@@ -116,6 +132,7 @@ export function useAuth() {
     firstName,
     userEmail,
     cooperativaId,
+    cooperativaNombre,
     initials,
     setUser,
     clearUser,

@@ -8,7 +8,7 @@
           <h2 class="page-title">Órganos Sociales</h2>
           <p class="page-subtitle">Juntas directivas, consejos y órganos de vigilancia</p>
         </div>
-        <button v-if="isAdmin" class="btn-primary" @click="openNewOrgan">
+        <button class="btn-primary" @click="openNewOrgan">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo órgano
         </button>
@@ -77,7 +77,7 @@
         <div class="detail-section">
           <div class="section-head">
             <h3 class="section-title">Gestión de actas</h3>
-            <button v-if="isConsejo || isAdmin" class="btn-primary btn-sm" @click="openNewActa">
+            <button class="btn-primary btn-sm" @click="openNewActa">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Nueva acta
             </button>
@@ -90,7 +90,7 @@
                   <th>Tipo</th>
                   <th>Fecha</th>
                   <th>Estado</th>
-                  <th v-if="isConsejo || isAdmin" class="th-actions">Acc.</th>
+                  <th class="th-actions">Acc.</th>
                 </tr>
               </thead>
               <tbody>
@@ -99,7 +99,7 @@
                   <td>{{ acta.tipo }}</td>
                   <td>{{ acta.fecha }}</td>
                   <td><span class="badge" :class="'badge--' + acta.estadoClass">{{ acta.estado }}</span></td>
-                  <td v-if="isConsejo || isAdmin" style="white-space:nowrap">
+                  <td style="white-space:nowrap">
                     <button class="action-btn" title="Editar" @click="editActa(acta)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
@@ -109,7 +109,7 @@
                   </td>
                 </tr>
                 <tr v-if="!selectedOrgan.actas.length">
-                  <td :colspan="(isConsejo || isAdmin) ? 5 : 4" class="empty-row">Sin actas registradas</td>
+                  <td :colspan="5" class="empty-row">Sin actas registradas</td>
                 </tr>
               </tbody>
             </table>
@@ -120,7 +120,7 @@
         <div class="detail-section">
           <div class="section-head">
             <h3 class="section-title">Gestión de integrantes</h3>
-            <button v-if="isConsejo || isAdmin" class="btn-primary btn-sm" @click="startEdit">
+            <button class="btn-primary btn-sm" @click="startEdit">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Editar
             </button>
@@ -208,8 +208,6 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRole } from '../composables/useRole.js'
-const { isAdmin, isConsejo } = useRole()
 
 /* ── Asociados disponibles (mock) ───────── */
 const asociados = [
