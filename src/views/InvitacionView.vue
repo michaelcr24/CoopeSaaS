@@ -80,6 +80,23 @@ onMounted(async () => {
   const { data } = await obtenerInvitacionPublica(codigo)
   invitacion.value = data
   if (data?.full_name) fullName.value = data.full_name
+
+  // Si llegamos aquí desde el enlace de confirmación del correo, Supabase
+  // ya detectó el token en la URL y dejó una sesión activa en esta misma
+  // página — completamos la vinculación de una vez, sin pedir el
+  // formulario otra vez (antes dependíamos de un valor en localStorage que
+  // se perdía si el enlace del correo abría un navegador/perfil distinto).
+  if (data && data.estado === 'pendiente') {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user?.email === data.email) {
+      const { error: aceptarError } = await aceptarInvitacionRpc(codigo)
+      if (!aceptarError) {
+        localStorage.removeItem('coopesaas-pending-invite')
+        router.push('/dashboard')
+        return
+      }
+    }
+  }
   cargando.value = false
 })
 
@@ -92,7 +109,13 @@ async function aceptar() {
   const { data, error: signUpError } = await supabase.auth.signUp({
     email: invitacion.value.email,
     password: password.value,
-    options: { data: { full_name: fullName.value.trim() } },
+    options: {
+      data: { full_name: fullName.value.trim() },
+      // Que el enlace de confirmación del correo regrese aquí mismo, para
+      // no depender de que sea el mismo navegador/pestaña que empezó el
+      // registro.
+      emailRedirectTo: `${window.location.origin}/invitacion/${codigo}`,
+    },
   })
   if (signUpError) {
     enviando.value = false
@@ -101,8 +124,9 @@ async function aceptar() {
   }
 
   if (!data.session) {
-    // Requiere confirmación por correo: guardamos el código para
-    // completar la vinculación automáticamente cuando inicie sesión.
+    // Requiere confirmación por correo: guardamos el código como respaldo,
+    // por si de todos modos termina iniciando sesión desde /login en vez
+    // de volver por el enlace del correo.
     localStorage.setItem('coopesaas-pending-invite', codigo)
     enviando.value = false
     pasoConfirmar.value = true

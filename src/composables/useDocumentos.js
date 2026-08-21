@@ -68,5 +68,13 @@ export function useDocumentos() {
     return { url: data?.signedUrl || null, error }
   }
 
-  return { listDocumentos, subirDocumento, eliminarDocumento, getUrlDescarga, eliminarArchivosDelEmpleado }
+  // A diferencia de getUrlDescarga (URL firmada para abrir en el navegador),
+  // esto trae el archivo como Blob — lo necesita, por ejemplo, el export
+  // masivo de certificados para empaquetarlo dentro de un .zip.
+  async function descargarArchivo(path) {
+    const { data, error } = await supabase.storage.from(BUCKET).download(path)
+    return { blob: data || null, error }
+  }
+
+  return { listDocumentos, subirDocumento, eliminarDocumento, getUrlDescarga, descargarArchivo, eliminarArchivosDelEmpleado }
 }

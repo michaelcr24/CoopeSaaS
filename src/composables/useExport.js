@@ -196,6 +196,92 @@ function drawBoleta({ title, rows, observacionesLabel, observaciones, resolucion
   }
 }
 
+// Dibuja el PDF de un certificado individual de capacitación (usado dentro
+// del .zip masivo); devuelve el jsPDF sin descargarlo.
+function buildCertificadoDoc({ cooperativaNombre, logo, fecha, empleadoNombre, capacitacionNombre, numeroCertificado, fechaEmision, institucion, duracionHoras, fechaVencimiento }) {
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const { drawHeader, drawFooter } = makeHeaderFooter(doc, { title: 'Certificado de capacitación', cooperativaNombre, logo, pageWidth, pageHeight, fecha })
+  drawHeader()
+
+  doc.setFontSize(18); doc.setFont(undefined, 'bold'); doc.setTextColor(19, 60, 101)
+  doc.text('Certificado de capacitación', pageWidth / 2, 60, { align: 'center' })
+  doc.setFontSize(11); doc.setFont(undefined, 'normal'); doc.setTextColor(60)
+  doc.text('Se certifica que', pageWidth / 2, 75, { align: 'center' })
+  doc.setFontSize(15); doc.setFont(undefined, 'bold'); doc.setTextColor(20)
+  doc.text(empleadoNombre || '—', pageWidth / 2, 85, { align: 'center' })
+  doc.setFontSize(11); doc.setFont(undefined, 'normal'); doc.setTextColor(60)
+  doc.text('completó satisfactoriamente la capacitación', pageWidth / 2, 95, { align: 'center' })
+  doc.setFontSize(13); doc.setFont(undefined, 'bold'); doc.setTextColor(20)
+  doc.text(capacitacionNombre || '—', pageWidth / 2, 104, { align: 'center' })
+
+  let y = 128
+  const colWidth = (pageWidth - 28) / 2
+  function field(label, value, x) {
+    doc.setFontSize(7.5); doc.setTextColor(120); doc.text(label, x, y)
+    doc.setFontSize(9.5); doc.setTextColor(20); doc.text(String(value ?? '—') || '—', x, y + 5)
+  }
+  field('Número de certificado', numeroCertificado, 14)
+  field('Fecha de emisión', fechaEmision, 14 + colWidth)
+  y += 13
+  field('Institución', institucion, 14)
+  field('Duración', duracionHoras != null && duracionHoras !== '' ? `${duracionHoras} horas` : '—', 14 + colWidth)
+  y += 13
+  field('Fecha de vencimiento', fechaVencimiento || 'No aplica', 14)
+
+  drawAllFooters(doc, drawFooter)
+  return doc
+}
+
+/**
+ * Exporta en un .zip los certificados de los participantes de una
+ * capacitación: un PDF con los datos del certificado por participante, más
+ * el documento original adjunto (si lo hay). `participantes` ya debe venir
+ * filtrado a quienes tienen certificado registrado. `getDocumentoBlob(path)`
+ * la provee quien llama, para no acoplar este módulo a Supabase Storage.
+ * @param {Object}   capacitacion     - { nombre, horas, instructorInstitucion }
+ * @param {Array}    participantes    - [{ nombre, numeroCertificado, certificadoInstitucion, fechaEmisionCertificado, fechaVencimientoCertificado, documentoCertificadoPath, documentoCertificadoNombre }]
+ * @param {Function} getDocumentoBlob - async (path) => Blob | null
+ */
+export async function exportCertificadosCapacitacionZip(capacitacion, participantes, getDocumentoBlob) {
+  if (!participantes?.length) return
+  const JSZip = (await import('jszip')).default
+  const { cooperativaNombre } = useAuth()
+  const logo = await getLogoInfo()
+  const fecha = new Date().toLocaleDateString('es-CR', { year: 'numeric', month: 'long', day: 'numeric' })
+  const zip = new JSZip()
+
+  for (const p of participantes) {
+    const carpeta = sanitizeFilename(p.nombre)
+    const doc = buildCertificadoDoc({
+      cooperativaNombre: cooperativaNombre.value, logo, fecha,
+      empleadoNombre: p.nombre,
+      capacitacionNombre: capacitacion.nombre,
+      numeroCertificado: p.numeroCertificado,
+      fechaEmision: p.fechaEmisionCertificado,
+      institucion: p.certificadoInstitucion || capacitacion.instructorInstitucion,
+      duracionHoras: capacitacion.horas,
+      fechaVencimiento: p.fechaVencimientoCertificado,
+    })
+    zip.file(`${carpeta}/certificado.pdf`, doc.output('arraybuffer'))
+    if (p.documentoCertificadoPath) {
+      const blob = await getDocumentoBlob(p.documentoCertificadoPath)
+      if (blob) zip.file(`${carpeta}/${p.documentoCertificadoNombre || 'documento_adjunto.pdf'}`, blob)
+    }
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' })
+  const url = URL.createObjectURL(zipBlob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${sanitizeFilename('Certificados_' + (capacitacion.nombre || 'capacitacion'))}.zip`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 /**
  * Genera y descarga la boleta de una solicitud de vacaciones en PDF.
  * @param {Object} vacacion     - objeto mapeado (mapVacacionRow)

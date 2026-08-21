@@ -234,6 +234,7 @@
                 <li v-if="!dFormacionAcademica.length" class="exp-mini-empty">Sin estudios registrados</li>
                 <li v-for="f in dFormacionAcademica" :key="f.id" class="exp-mini-item">
                   <div><strong>{{ f.titulo_obtenido || f.nivel_academico }}</strong><div class="exp-mini-sub">{{ f.nivel_academico }}<span v-if="f.profesion"> · {{ f.profesion }}</span></div></div>
+                  <a v-if="f.documentos_empleado" href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(f.documentos_empleado.storage_path)">📎 Ver documento</a>
                 </li>
               </ul>
               <p v-if="dColegiaturas.length" class="exp-subtitle" style="margin-top:10px">Colegiatura profesional</p>
@@ -250,6 +251,7 @@
                 <li v-if="!dCertificaciones.length && !dCursos.length" class="exp-mini-empty">Sin certificaciones ni cursos registrados</li>
                 <li v-for="c in dCertificaciones" :key="'cert-' + c.id" class="exp-mini-item">
                   <div><strong>{{ c.nombre }}</strong> <span class="badge badge--blue">{{ c.estado }}</span><div class="exp-mini-sub">{{ c.institucion_certificadora }}</div></div>
+                  <a v-if="c.documentos_empleado" href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(c.documentos_empleado.storage_path)">📎 Ver documento</a>
                 </li>
                 <li v-for="c in dCursos" :key="'curso-' + c.id" class="exp-mini-item">
                   <div><strong>{{ c.nombre_curso }}</strong><div class="exp-mini-sub">{{ c.institucion }} · {{ c.modalidad }}</div></div>
@@ -479,13 +481,77 @@
       <div class="section-header-row">
         <div>
           <h3 class="section-subtitle">Gestión documental</h3>
-          <p class="section-desc">Documentos personales, laborales y académicos de los colaboradores</p>
+          <p class="section-desc">Repositorio de documentos de consulta a disposición de todo el personal. Los documentos personales de cada colaborador viven en su expediente.</p>
+        </div>
+        <div class="header-actions" v-if="puedeGestionarDocInstitucional">
+          <button class="btn-primary" @click="abrirNuevoDocInstitucional">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Subir documento
+          </button>
         </div>
       </div>
 
-      <div class="exp-empty">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#C5D5E5" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <p>Sin documentos registrados. La gestión documental de expedientes estará disponible próximamente.</p>
+      <div class="doc-inst-layout">
+        <div class="doc-inst-categorias">
+          <button
+            v-for="cat in categoriasDocDisponibles" :key="cat"
+            type="button" class="doc-inst-cat-btn" :class="{ 'doc-inst-cat-btn--active': docCategoriaActiva === cat }"
+            @click="seleccionarCategoriaDoc(cat)"
+          >
+            {{ cat }}
+            <span class="doc-inst-cat-count">{{ documentosInstitucionales.filter(d => d.categoria === cat).length }}</span>
+          </button>
+        </div>
+
+        <div class="doc-inst-content">
+          <div class="doc-inst-subtabs">
+            <button
+              v-for="sub in subcategoriasDocDisponibles" :key="sub"
+              type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': docSubcategoriaActiva === sub }"
+              @click="docSubcategoriaActiva = sub"
+            >{{ sub }} ({{ documentosInstitucionales.filter(d => d.categoria === docCategoriaActiva && d.subcategoria === sub).length }})</button>
+          </div>
+
+          <div class="filters-bar">
+            <div class="search-wrap">
+              <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input v-model="docInstFiltroTexto" type="search" placeholder="Buscar por nombre o descripción..." class="search-input" />
+            </div>
+          </div>
+
+          <div class="data-card">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Documento</th>
+                  <th>Descripción</th>
+                  <th>Subido por</th>
+                  <th>Fecha</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="d in documentosInstFiltrados" :key="d.id">
+                  <td>{{ d.nombre }}</td>
+                  <td>{{ d.descripcion || '—' }}</td>
+                  <td>{{ d.subidoPor }}</td>
+                  <td>{{ new Date(d.fecha).toLocaleDateString('es-CR') }}</td>
+                  <td class="cell-actions">
+                    <button class="action-btn" title="Abrir" @click="abrirDocumentoInstitucional(d)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                    <button v-if="puedeGestionarDocInstitucional" class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarDocInstitucional(d)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!documentosInstFiltrados.length">
+                  <td colspan="5" class="empty-row">Sin documentos en esta subcategoría.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </template>
 
@@ -694,13 +760,13 @@
           <p class="section-desc">Gestión del plan de capacitación y registro de participación</p>
         </div>
         <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(capacitaciones,[{key:'tema',label:'Tema'},{key:'modalidad',label:'Modalidad'},{key:'fecha',label:'Fecha'},{key:'instructor',label:'Instructor'},{key:'asistentes',label:'Asistentes'}],'capacitaciones')">
+          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(capacitacionesFiltradas,[{key:'nombre',label:'Tema'},{key:'categoria',label:'Categoría'},{key:'modalidad',label:'Modalidad'},{key:'fecha',label:'Fecha'},{key:'instructor',label:'Instructor'},{key:'asistentes',label:'Asistentes'},{key:'status',label:'Estado'}],'capacitaciones')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(capacitaciones,[{key:'tema',label:'Tema'},{key:'modalidad',label:'Modalidad'},{key:'fecha',label:'Fecha'},{key:'instructor',label:'Instructor'},{key:'asistentes',label:'Asistentes'}],'Capacitaciones')">
+          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(capacitacionesFiltradas,[{key:'nombre',label:'Tema'},{key:'categoria',label:'Categoría'},{key:'modalidad',label:'Modalidad'},{key:'fecha',label:'Fecha'},{key:'instructor',label:'Instructor'},{key:'asistentes',label:'Asistentes'},{key:'status',label:'Estado'}],'Capacitaciones')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </button>
-          <button class="btn-primary" @click="openModal('capacitacion')">
+          <button class="btn-primary" @click="abrirNuevaCapacitacion">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Nueva capacitación
           </button>
@@ -729,21 +795,21 @@
       <div class="filters-bar">
         <div class="search-wrap">
           <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar por tema o instructor..." class="search-input" />
+          <input v-model="capFiltroTexto" type="search" placeholder="Buscar por tema o instructor..." class="search-input" />
         </div>
-        <select class="filter-select">
+        <select v-model="capFiltroCategoriaId" class="filter-select">
           <option value="">Todas las categorías</option>
-          <option>Tecnología</option>
-          <option>Finanzas</option>
-          <option>Liderazgo</option>
-          <option>Normativa</option>
-          <option>Otro</option>
+          <option v-for="c in categoriasCapacitacion" :key="c.id" :value="c.id">{{ c.nombre }}</option>
         </select>
-        <select class="filter-select">
+        <select v-model="capFiltroModalidadId" class="filter-select">
+          <option value="">Todas las modalidades</option>
+          <option v-for="m in modalidadesCapacitacion" :key="m.id" :value="m.id">{{ m.nombre }}</option>
+        </select>
+        <select v-model="capFiltroEstado" class="filter-select">
           <option value="">Todos los estados</option>
-          <option>Programada</option>
-          <option>En curso</option>
-          <option>Finalizada</option>
+          <option value="Programada">Programada</option>
+          <option value="En curso">En curso</option>
+          <option value="Finalizada">Finalizada</option>
         </select>
       </div>
 
@@ -759,20 +825,20 @@
               <th>Instructor</th>
               <th>Asistentes</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="cap in capacitaciones" :key="cap.id">
+            <tr v-for="cap in capacitacionesFiltradas" :key="cap.id">
               <td>
                 <div class="cap-nombre">
                   <span class="cap-titulo">{{ cap.nombre }}</span>
-                  <span class="cap-depto">{{ cap.depto }}</span>
+                  <span class="cap-depto">{{ cap.deptoLabel }}</span>
                 </div>
               </td>
-              <td><span class="badge badge--blue">{{ cap.categoria }}</span></td>
+              <td><span class="badge badge--blue">{{ cap.categoria || '—' }}</span></td>
               <td>
-                <span class="modalidad-badge" :class="`modalidad--${cap.modalidadClass}`">{{ cap.modalidad }}</span>
+                <span class="modalidad-badge" :class="`modalidad--${cap.modalidadClass}`">{{ cap.modalidad || '—' }}</span>
               </td>
               <td>{{ cap.fecha }}</td>
               <td>{{ cap.horas }}h</td>
@@ -785,13 +851,19 @@
               </td>
               <td><span class="badge" :class="`badge--${cap.statusClass}`">{{ cap.status }}</span></td>
               <td class="cell-actions">
-                <button class="action-btn" title="Ver detalle">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <button class="action-btn" title="Gestionar asistentes" @click="abrirAsistentesCapacitacion(cap)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </button>
-                <button class="action-btn" title="Editar">
+                <button class="action-btn" title="Editar" @click="abrirEditarCapacitacion(cap)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
+                <button class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarCapacitacion(cap)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
               </td>
+            </tr>
+            <tr v-if="capacitacionesFiltradas.length === 0">
+              <td colspan="9" class="empty-row">Sin capacitaciones registradas.</td>
             </tr>
           </tbody>
         </table>
@@ -810,7 +882,7 @@
     ══════════════════════════════════════════ -->
     <Transition name="modal-fade">
       <div v-if="modal.open" class="modal-backdrop" @click.self="modal.open = false">
-        <div class="modal-box" :class="{ 'modal-box--expediente': modal.type === 'nuevo' || modal.type === 'editar' }">
+        <div class="modal-box" :class="{ 'modal-box--expediente': modal.type === 'nuevo' || modal.type === 'editar' || modal.type === 'capacitacion' }">
           <button class="modal-close" @click="modal.open = false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -1070,7 +1142,10 @@
                     <li v-for="f in formacionAcademica" :key="f.id" class="exp-mini-item">
                       <div>
                         <strong>{{ f.titulo_obtenido || f.nivel_academico }}</strong>
-                        <div class="exp-mini-sub">{{ f.nivel_academico }}<span v-if="f.profesion"> · {{ f.profesion }}</span><span v-if="f.fecha_graduacion"> · {{ f.fecha_graduacion }}</span></div>
+                        <div class="exp-mini-sub">
+                          {{ f.nivel_academico }}<span v-if="f.profesion"> · {{ f.profesion }}</span><span v-if="f.fecha_graduacion"> · {{ f.fecha_graduacion }}</span>
+                          <span v-if="f.documentos_empleado"> · <a href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(f.documentos_empleado.storage_path)">📎 {{ f.documentos_empleado.nombre }}</a></span>
+                        </div>
                       </div>
                       <button type="button" class="action-btn" title="Quitar" @click="quitarFormacionAcademica(f.id)">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1095,6 +1170,7 @@
                     <div class="form-field"><label>Título obtenido</label><input v-model="nuevaFormacion.titulo_obtenido" type="text" /></div>
                     <div class="form-field"><label>Fecha de graduación</label><DatePicker v-model="nuevaFormacion.fecha_graduacion" /></div>
                   </div>
+                  <div class="form-field"><label>Documento (título, diploma...)</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onFormacionArchivoChange" /></div>
                   <div v-if="formacionError" class="req" style="font-size:12.5px;">{{ formacionError }}</div>
                   <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarFormacionAcademica">Agregar estudio</button></div>
 
@@ -1135,7 +1211,10 @@
                     <li v-for="c in certificacionesProfesionales" :key="c.id" class="exp-mini-item">
                       <div>
                         <strong>{{ c.nombre }}</strong> <span class="badge badge--blue">{{ c.estado }}</span>
-                        <div class="exp-mini-sub">{{ c.institucion_certificadora }}<span v-if="c.fecha_vencimiento"> · Vence {{ c.fecha_vencimiento }}</span></div>
+                        <div class="exp-mini-sub">
+                          {{ c.institucion_certificadora }}<span v-if="c.fecha_vencimiento"> · Vence {{ c.fecha_vencimiento }}</span>
+                          <span v-if="c.documentos_empleado"> · <a href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(c.documentos_empleado.storage_path)">📎 {{ c.documentos_empleado.nombre }}</a></span>
+                        </div>
                       </div>
                       <button type="button" class="action-btn" title="Quitar" @click="quitarCertificacion(c.id)">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1150,6 +1229,7 @@
                     <div class="form-field"><label>Fecha de emisión</label><DatePicker v-model="nuevaCertificacion.fecha_emision" /></div>
                     <div class="form-field"><label>Fecha de vencimiento</label><DatePicker v-model="nuevaCertificacion.fecha_vencimiento" /></div>
                   </div>
+                  <div class="form-field"><label>Documento (certificado firmado)</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onCertificacionArchivoChange" /></div>
                   <div v-if="certificacionError" class="req" style="font-size:12.5px;">{{ certificacionError }}</div>
                   <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarCertificacion">Agregar certificación</button></div>
 
@@ -1386,12 +1466,22 @@
                 <div class="exp-field"><label>Días disponibles</label><span>{{ vacDiasDisponibles !== null ? vacDiasDisponibles + ' días' : '—' }}</span></div>
               </div>
 
-              <div class="form-field">
-                <label>Tipo de vacaciones</label>
-                <select v-model="vacForm.tipoVacacionId" :disabled="!vacCamposEditables">
-                  <option value="">Seleccionar</option>
-                  <option v-for="t in tiposVacacion" :key="t.id" :value="t.id">{{ t.nombre }}</option>
-                </select>
+              <div class="form-row">
+                <div class="form-field">
+                  <label>Tipo de vacaciones</label>
+                  <select v-model="vacForm.tipoVacacionId" :disabled="!vacCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="t in tiposVacacion" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Quién aprueba</label>
+                  <select v-model="vacForm.aprobadorDesignadoId" :disabled="!vacCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="a in aprobadoresDisponibles" :key="a.id" :value="a.id">{{ a.name }}</option>
+                  </select>
+                  <p v-if="!aprobadoresDisponibles.length" class="exp-hint">No hay personal en Gerencia General o Administración.</p>
+                </div>
               </div>
               <div class="form-row">
                 <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker v-model="vacForm.fechaInicio" :disabled="!vacCamposEditables" /></div>
@@ -1500,12 +1590,22 @@
                 <div class="exp-field"><label>Fecha de ingreso</label><span>{{ permEmpleadoInfo.fechaIngreso }}</span></div>
               </div>
 
-              <div class="form-field">
-                <label>Tipo de permiso</label>
-                <select v-model="permForm.tipoPermisoId" :disabled="!permCamposEditables">
-                  <option value="">Seleccionar</option>
-                  <option v-for="t in tiposPermiso" :key="t.id" :value="t.id">{{ t.nombre }}</option>
-                </select>
+              <div class="form-row">
+                <div class="form-field">
+                  <label>Tipo de permiso</label>
+                  <select v-model="permForm.tipoPermisoId" :disabled="!permCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="t in tiposPermiso" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Quién aprueba</label>
+                  <select v-model="permForm.aprobadorDesignadoId" :disabled="!permCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="a in aprobadoresDisponibles" :key="a.id" :value="a.id">{{ a.name }}</option>
+                  </select>
+                  <p v-if="!aprobadoresDisponibles.length" class="exp-hint">No hay personal en Gerencia General o Administración.</p>
+                </div>
               </div>
               <div class="form-row">
                 <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker v-model="permForm.fechaInicio" :disabled="!permCamposEditables" /></div>
@@ -1829,9 +1929,9 @@
             </div>
           </template>
 
-          <!-- Nueva capacitación -->
+          <!-- Nueva / editar capacitación -->
           <template v-if="modal.type === 'capacitacion'">
-            <h3 class="modal-title">Nueva capacitación</h3>
+            <h3 class="modal-title">{{ modal.data ? 'Editar capacitación' : 'Nueva capacitación' }}</h3>
             <p class="modal-subtitle">Registra una capacitación para el plan de formación</p>
             <form class="modal-form" @submit.prevent="guardarCapacitacion">
               <div class="form-field form-field--full">
@@ -1841,23 +1941,16 @@
               <div class="form-row">
                 <div class="form-field">
                   <label>Categoría <span class="req">*</span></label>
-                  <select v-model="capacitacionForm.categoria" required>
+                  <select v-model="capacitacionForm.categoriaId" required>
                     <option value="">Seleccionar</option>
-                    <option>Tecnología</option>
-                    <option>Finanzas</option>
-                    <option>Liderazgo</option>
-                    <option>Normativa</option>
-                    <option>Atención al asociado</option>
-                    <option>Otro</option>
+                    <option v-for="c in categoriasCapacitacion" :key="c.id" :value="c.id">{{ c.nombre }}</option>
                   </select>
                 </div>
                 <div class="form-field">
                   <label>Modalidad <span class="req">*</span></label>
-                  <select v-model="capacitacionForm.modalidad" required>
+                  <select v-model="capacitacionForm.modalidadId" required>
                     <option value="">Seleccionar</option>
-                    <option>Presencial</option>
-                    <option>Virtual</option>
-                    <option>Mixta</option>
+                    <option v-for="m in modalidadesCapacitacion" :key="m.id" :value="m.id">{{ m.nombre }}</option>
                   </select>
                 </div>
               </div>
@@ -1866,7 +1959,6 @@
                 <div class="form-field"><label>Duración (horas) <span class="req">*</span></label><input v-model="capacitacionForm.horas" type="number" min="1" placeholder="8" required /></div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Instructor / Proveedor</label><input v-model="capacitacionForm.instructor" type="text" placeholder="Nombre del facilitador o empresa" /></div>
                 <div class="form-field">
                   <label>Estado</label>
                   <select v-model="capacitacionForm.estado">
@@ -1875,24 +1967,214 @@
                     <option>Finalizada</option>
                   </select>
                 </div>
+                <div class="form-field">
+                  <label>Tipo</label>
+                  <div class="checkbox-group" style="flex-direction:row; gap:16px; padding-top:6px;">
+                    <label class="checkbox-item"><input type="radio" :value="false" v-model="capacitacionForm.obligatoria" /> Opcional</label>
+                    <label class="checkbox-item"><input type="radio" :value="true" v-model="capacitacionForm.obligatoria" /> Obligatoria</label>
+                  </div>
+                </div>
               </div>
+
+              <p class="exp-hint" style="margin-top:6px;">Instructor / proveedor</p>
+              <div class="form-field">
+                <label class="checkbox-item"><input type="checkbox" v-model="capacitacionForm.instructorExterno" /> Es un instructor externo</label>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Nombre</label><input v-model="capacitacionForm.instructorNombre" type="text" placeholder="Nombre del facilitador" /></div>
+                <div class="form-field"><label>Institución</label><input v-model="capacitacionForm.instructorInstitucion" type="text" placeholder="Empresa o institución" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Correo</label><input v-model="capacitacionForm.instructorCorreo" type="email" placeholder="correo@ejemplo.com" /></div>
+                <div class="form-field"><label>Teléfono</label><input v-model="capacitacionForm.instructorTelefono" type="text" placeholder="0000-0000" /></div>
+              </div>
+
               <div class="form-field">
                 <label>Departamentos participantes</label>
                 <div class="checkbox-group">
-                  <label class="checkbox-item"><input type="checkbox" /> Administración</label>
-                  <label class="checkbox-item"><input type="checkbox" /> Finanzas</label>
-                  <label class="checkbox-item"><input type="checkbox" /> Operaciones</label>
-                  <label class="checkbox-item"><input type="checkbox" /> Todos</label>
+                  <label v-for="d in departamentos" :key="d.id" class="checkbox-item">
+                    <input type="checkbox" :value="d.id" v-model="capacitacionForm.departamentosIds" /> {{ d.nombre }}
+                  </label>
+                  <p v-if="!departamentos.length" class="exp-hint">No hay departamentos registrados. Déjalo vacío para incluir a todos.</p>
                 </div>
               </div>
-              <div class="form-field"><label>Descripción</label><textarea rows="3" placeholder="Objetivos, contenido o notas sobre la capacitación..."></textarea></div>
-              <div class="form-field"><label>Materiales / Adjunto</label><input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" /></div>
+              <div class="form-field"><label>Descripción</label><textarea v-model="capacitacionForm.descripcion" rows="3" placeholder="Objetivos, contenido o notas sobre la capacitación..."></textarea></div>
+
+              <div v-if="modal.data" class="form-field">
+                <label>Plan de capacitación y documentación asociada</label>
+                <div class="checkbox-group" style="flex-direction:row; align-items:center;">
+                  <input type="file" @change="onCapDocArchivoChange" style="max-width:220px;" />
+                  <button type="button" class="btn-outline" :disabled="!capDocArchivoNuevo || subiendoCapDoc" @click="subirCapDoc">{{ subiendoCapDoc ? 'Subiendo...' : '+ Adjuntar' }}</button>
+                </div>
+                <ul class="exp-mini-list">
+                  <li v-if="!documentosCapacitacion.length" class="exp-mini-empty">Sin documentos adjuntos.</li>
+                  <li v-for="d in documentosCapacitacion" :key="d.id" class="exp-mini-item">
+                    <span>{{ d.nombre }}</span>
+                    <div style="display:flex; gap:4px;">
+                      <button type="button" class="action-btn" title="Descargar" @click="descargarCapDoc(d)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </button>
+                      <button type="button" class="action-btn action-btn--red" title="Eliminar" @click="quitarCapDoc(d)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+              <p v-else class="exp-hint">Guarda la capacitación primero para poder adjuntar el plan de capacitación y otros documentos.</p>
+
               <div v-if="capacitacionError" class="req" style="font-size:12.5px;">{{ capacitacionError }}</div>
               <div class="modal-actions">
                 <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar capacitación</button>
+                <button type="submit" class="btn-primary" :disabled="capacitacionGuardando">{{ capacitacionGuardando ? 'Guardando...' : 'Guardar capacitación' }}</button>
               </div>
             </form>
+          </template>
+
+          <!-- Confirmar eliminación de capacitación -->
+          <template v-if="modal.type === 'eliminar-capacitacion'">
+            <h3 class="modal-title">Eliminar capacitación</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar <strong>{{ modal.data?.nombre }}</strong>? Se eliminará también el registro de asistencia asociado.
+            </p>
+            <div v-if="eliminarCapacitacionError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarCapacitacionError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoCapacitacion" @click="eliminarCapacitacionConfirmada">
+                {{ eliminandoCapacitacion ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Gestionar asistentes de una capacitación -->
+          <template v-if="modal.type === 'asistentes-capacitacion'">
+            <h3 class="modal-title">Asistentes</h3>
+            <p class="modal-subtitle">{{ modal.data?.nombre }} · marca la asistencia, la nota y el certificado de cada colaborador</p>
+
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="form-field form-field--full">
+                <label>Agregar colaborador</label>
+                <select v-model="asistenteNuevoId">
+                  <option value="">Seleccionar</option>
+                  <option v-for="e in empleadosSinAsistencia" :key="e.id" :value="e.id">{{ e.name }}</option>
+                </select>
+              </div>
+              <button type="button" class="btn-outline" style="white-space:nowrap;" :disabled="!asistenteNuevoId || agregandoAsistente" @click="agregarAsistente">+ Agregar</button>
+            </div>
+
+            <ul class="exp-mini-list">
+              <li v-if="!asistentesCapacitacion.length" class="exp-mini-empty">Todavía no hay colaboradores registrados en esta capacitación.</li>
+              <li v-for="a in asistentesCapacitacion" :key="a.id" class="exp-mini-item">
+                <div>
+                  <strong>{{ a.nombre }}</strong>
+                  <select v-model="a.estadoAsistencia" @change="actualizarAsistente(a)" style="margin-top:4px; height:30px; font-size:12.5px;">
+                    <option value="">Sin marcar</option>
+                    <option value="asistio">Asistió</option>
+                    <option value="no_asistio">No asistió</option>
+                    <option value="justificada">Justificada</option>
+                    <option value="parcial">Asistencia parcial</option>
+                  </select>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input v-model="a.calificacion" @change="actualizarAsistente(a)" type="number" min="0" max="100" placeholder="Nota" style="width:70px; height:32px; padding:0 8px; border:1.5px solid #D4E4F4; border-radius:6px;" />
+                  <button type="button" class="action-btn" :class="{ 'action-btn--green': a.numeroCertificado }" title="Certificado" @click="abrirCertificadoAsistente(a)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5L17 22l-5-3-5 3 1.5-8.5"/></svg>
+                  </button>
+                  <button type="button" class="action-btn action-btn--red" title="Quitar" @click="quitarAsistente(a)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <div v-if="asistentesError" class="req" style="font-size:12.5px;">{{ asistentesError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+              <button type="button" class="btn-outline" :disabled="!asistentesConCertificado.length || exportandoCertificados" @click="exportarCertificados">
+                {{ exportandoCertificados ? 'Generando...' : `Exportar certificados (${asistentesConCertificado.length})` }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Certificado de un asistente -->
+          <template v-if="modal.type === 'certificado-asistente' && asistenteParaCertificado">
+            <h3 class="modal-title">Certificado</h3>
+            <p class="modal-subtitle">{{ asistenteParaCertificado.nombre }} · {{ asignacionCapacitacionActual?.nombre }}</p>
+
+            <div class="form-row">
+              <div class="form-field"><label>Número de certificado</label><input v-model="certificadoForm.numeroCertificado" type="text" placeholder="Ej: CAP-2026-001" /></div>
+              <div class="form-field"><label>Institución</label><input v-model="certificadoForm.certificadoInstitucion" type="text" placeholder="Institución que emite" /></div>
+            </div>
+            <div class="form-row">
+              <div class="form-field"><label>Fecha de emisión</label><DatePicker v-model="certificadoForm.fechaEmisionCertificado" /></div>
+              <div class="form-field"><label>Fecha de vencimiento (si aplica)</label><DatePicker v-model="certificadoForm.fechaVencimientoCertificado" /></div>
+            </div>
+            <div class="form-field">
+              <label>Documento</label>
+              <div v-if="asistenteParaCertificado.documentoCertificadoNombre" class="checkbox-group" style="flex-direction:row; align-items:center; justify-content:space-between;">
+                <span class="exp-hint">{{ asistenteParaCertificado.documentoCertificadoNombre }}</span>
+                <button type="button" class="action-btn" title="Descargar" @click="descargarCertificadoDoc(asistenteParaCertificado)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+              </div>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onCertificadoArchivoChange" />
+            </div>
+            <div v-if="certificadoError" class="req" style="font-size:12.5px;">{{ certificadoError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.type = 'asistentes-capacitacion'">Cancelar</button>
+              <button v-if="asistenteParaCertificado.numeroCertificado || asistenteParaCertificado.documentoCertificadoPath" type="button" class="btn-outline" :disabled="guardandoCertificado" @click="quitarCertificadoAsistente">Quitar certificado</button>
+              <button type="button" class="btn-primary" :disabled="guardandoCertificado" @click="guardarCertificado">{{ guardandoCertificado ? 'Guardando...' : 'Guardar certificado' }}</button>
+            </div>
+          </template>
+
+          <!-- Subir documento institucional -->
+          <template v-if="modal.type === 'doc-institucional'">
+            <h3 class="modal-title">Subir documento</h3>
+            <p class="modal-subtitle">Estará disponible para todo el personal de la cooperativa</p>
+            <form class="modal-form" @submit.prevent="subirDocInstitucional">
+              <div class="form-row">
+                <div class="form-field">
+                  <label>Categoría <span class="req">*</span></label>
+                  <select v-model="docInstForm.categoria" @change="onCategoriaDocInstChange" required>
+                    <option v-for="cat in Object.keys(ESTRUCTURA_DOCUMENTAL)" :key="cat" :value="cat">{{ cat }}</option>
+                    <option value="__otro__">Otro</option>
+                  </select>
+                  <input v-if="docInstForm.categoria === '__otro__'" v-model="docInstForm.categoriaOtro" type="text" placeholder="Nombre de la categoría" style="margin-top:6px;" required />
+                </div>
+                <div class="form-field">
+                  <label>Subcategoría <span class="req">*</span></label>
+                  <select v-if="docInstForm.categoria !== '__otro__'" v-model="docInstForm.subcategoria" required>
+                    <option v-for="sub in ESTRUCTURA_DOCUMENTAL[docInstForm.categoria]" :key="sub" :value="sub">{{ sub }}</option>
+                    <option value="__otro__">Otro</option>
+                  </select>
+                  <input v-if="docInstForm.categoria === '__otro__' || docInstForm.subcategoria === '__otro__'" v-model="docInstForm.subcategoriaOtro" type="text" placeholder="Nombre de la subcategoría" :style="docInstForm.categoria !== '__otro__' ? 'margin-top:6px;' : ''" required />
+                </div>
+              </div>
+              <div class="form-field"><label>Nombre del documento <span class="req">*</span></label><input v-model="docInstForm.nombre" type="text" placeholder="Ej: Reglamento interno de trabajo" required /></div>
+              <div class="form-field"><label>Descripción</label><textarea v-model="docInstForm.descripcion" rows="2" placeholder="Notas sobre el contenido o el alcance del documento..."></textarea></div>
+              <div class="form-field"><label>Archivo <span class="req">*</span></label><input type="file" @change="onDocInstArchivoChange" required /></div>
+              <div v-if="docInstError" class="req" style="font-size:12.5px;">{{ docInstError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+                <button type="submit" class="btn-primary" :disabled="subiendoDocInst">{{ subiendoDocInst ? 'Subiendo...' : 'Subir documento' }}</button>
+              </div>
+            </form>
+          </template>
+
+          <!-- Confirmar eliminación de documento institucional -->
+          <template v-if="modal.type === 'eliminar-doc-institucional'">
+            <h3 class="modal-title">Eliminar documento</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar <strong>{{ modal.data?.nombre }}</strong>? Dejará de estar disponible para todo el personal.
+            </p>
+            <div v-if="eliminarDocInstError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarDocInstError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoDocInst" @click="eliminarDocInstitucionalConfirmado">
+                {{ eliminandoDocInst ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
           </template>
 
         </div>
@@ -1904,11 +2186,12 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted, watch } from 'vue'
-import { exportExcel, exportPDF, exportExpedientePDF, exportBoletaVacacion, exportBoletaPermiso, exportBoletaIncapacidad } from '../composables/useExport.js'
+import { exportExcel, exportPDF, exportExpedientePDF, exportBoletaVacacion, exportBoletaPermiso, exportBoletaIncapacidad, exportCertificadosCapacitacionZip } from '../composables/useExport.js'
 import { useAuth } from '../composables/useAuth.js'
 import { usePersonal } from '../composables/usePersonal.js'
 import { useCatalogosPersonal } from '../composables/useCatalogosPersonal.js'
 import { useDocumentos, estadoVencimiento } from '../composables/useDocumentos.js'
+import { useDocumentosInstitucionales } from '../composables/useDocumentosInstitucionales.js'
 import { useFeriados } from '../composables/useFeriados.js'
 import { useInvitaciones } from '../composables/useInvitaciones.js'
 import EvaluacionesPanel from '../components/EvaluacionesPanel.vue'
@@ -1922,7 +2205,11 @@ const { cooperativaId, currentUser } = useAuth()
 const {
   listDepartamentos, listCargos, listEmpleados, createEmpleado, updateEmpleado, eliminarEmpleado,
   findOrCreateCargo, listPerfilesCooperativa,
-  listCapacitaciones, crearCapacitacion,
+  listCapacitaciones, crearCapacitacion, actualizarCapacitacion, eliminarCapacitacion,
+  listAsistentesCapacitacion, agregarAsistenteCapacitacion, actualizarAsistenteCapacitacion, quitarAsistenteCapacitacion,
+  guardarCertificadoAsistente, eliminarCertificadoAsistente,
+  sincronizarCertificacionCapacitacion, quitarCertificacionCapacitacion,
+  listDocumentosCapacitacion, subirDocumentoCapacitacion, eliminarDocumentoCapacitacion,
   listPermisosSolicitudes, crearPermisoSolicitud, actualizarPermisoSolicitud, resolverPermisoSolicitud, eliminarPermisoSolicitud,
   subirDocumentoPermiso, eliminarDocumentoPermiso,
   listIncapacidades, crearIncapacidad, actualizarIncapacidad, registrarReincorporacion, anularIncapacidad, eliminarIncapacidad,
@@ -1946,7 +2233,8 @@ const {
 const { listByTipo: listCatalogo, findOrCreate: findOrCreateCatalogo } = useCatalogosPersonal()
 const { listFeriados } = useFeriados()
 const { crearInvitacion } = useInvitaciones()
-const { listDocumentos, subirDocumento, eliminarDocumento, getUrlDescarga, eliminarArchivosDelEmpleado } = useDocumentos()
+const { listDocumentos, subirDocumento, eliminarDocumento, getUrlDescarga, descargarArchivo, eliminarArchivosDelEmpleado } = useDocumentos()
+const { ESTRUCTURA_DOCUMENTAL, listDocumentosInstitucionales, subirDocumentoInstitucional, eliminarDocumentoInstitucional, getUrlDescargaInstitucional } = useDocumentosInstitucionales()
 const vencimientoInfo = estadoVencimiento
 
 const activeTab = ref('dashboard')
@@ -2100,14 +2388,17 @@ const colegiosProfesionales = ref([])
 const tiposDocumento = ref([])
 const tiposMovimiento = ref([])
 const tiposSalida = ref([])
+const categoriasCapacitacion = ref([])
+const modalidadesCapacitacion = ref([])
 
 async function cargarCatalogosExpediente() {
-  const [sedesR, tcR, jorR, horR, insR, colR, tdR, tmR, tsR, tvR, tpR, tiR, ieR] = await Promise.all([
+  const [sedesR, tcR, jorR, horR, insR, colR, tdR, tmR, tsR, tvR, tpR, tiR, ieR, ccR, mcR] = await Promise.all([
     listCatalogo('sede'), listCatalogo('tipo_contratacion'), listCatalogo('jornada'),
     listCatalogo('horario'), listCatalogo('institucion_educativa'), listCatalogo('colegio_profesional'),
     listCatalogo('tipo_documento'), listCatalogo('tipo_movimiento'), listCatalogo('tipo_salida'),
     listCatalogo('tipo_vacacion'), listCatalogo('tipo_permiso'),
     listCatalogo('tipo_incapacidad'), listCatalogo('institucion_emisora'),
+    listCatalogo('categoria_capacitacion'), listCatalogo('modalidad_capacitacion'),
   ])
   sedes.value = sedesR.data || []
   tiposContratacion.value = tcR.data || []
@@ -2122,9 +2413,15 @@ async function cargarCatalogosExpediente() {
   tiposPermiso.value = tpR.data || []
   tiposIncapacidad.value = tiR.data || []
   institucionesEmisoras.value = ieR.data || []
+  categoriasCapacitacion.value = ccR.data || []
+  modalidadesCapacitacion.value = mcR.data || []
 }
 
 const jefeOptions = computed(() => employees.value.filter((e) => e.id !== modal.data?.id))
+
+// Personal habilitado para figurar como "Quién aprueba" en solicitudes de
+// vacaciones/permisos: únicamente Gerencia General y Administración.
+const aprobadoresDisponibles = computed(() => employees.value.filter((e) => e.active && ['Gerencia General', 'Administración'].includes(e.dept)))
 
 function selectExpedienteTab(tab) {
   expedienteTab.value = tab.key
@@ -2366,6 +2663,7 @@ async function agregarContrato() {
 const formacionAcademica = ref([])
 const EMPTY_FORMACION = { nivel_academico: '', profesion: '', especialidad: '', institucionEducativa: '', titulo_obtenido: '', fecha_graduacion: '' }
 const nuevaFormacion = reactive({ ...EMPTY_FORMACION })
+const formacionArchivo = ref(null)
 const formacionError = ref(null)
 const NIVELES_ACADEMICOS = ['Primaria', 'Secundaria', 'Técnico', 'Diplomado', 'Bachillerato universitario', 'Licenciatura', 'Maestría', 'Doctorado']
 
@@ -2374,16 +2672,24 @@ async function cargarFormacionAcademica() {
   if (error) { formacionError.value = error.message; return }
   formacionAcademica.value = data || []
 }
+function onFormacionArchivoChange(e) { formacionArchivo.value = e.target.files[0] || null }
 async function agregarFormacionAcademica() {
   if (!nuevaFormacion.nivel_academico) return
   formacionError.value = null
   const { institucionEducativa, ...rest } = nuevaFormacion
   const { data: institucion, error: instErr } = await findOrCreateCatalogo(cooperativaId.value, 'institucion_educativa', institucionEducativa)
   if (instErr) { formacionError.value = instErr.message; return }
-  const payload = { ...rest, fecha_graduacion: nuevaFormacion.fecha_graduacion || null, institucion_educativa_id: institucion?.id || null }
+  let documentoId = null
+  if (formacionArchivo.value) {
+    const { data: doc, error: docErr } = await subirDocumento(cooperativaId.value, modal.data.id, formacionArchivo.value, { nombre: formacionArchivo.value.name })
+    if (docErr) { formacionError.value = docErr.message; return }
+    documentoId = doc.id
+  }
+  const payload = { ...rest, fecha_graduacion: nuevaFormacion.fecha_graduacion || null, institucion_educativa_id: institucion?.id || null, documento_id: documentoId }
   const { error } = await crearFormacionAcademica(cooperativaId.value, modal.data.id, payload)
   if (error) { formacionError.value = error.message; return }
   Object.assign(nuevaFormacion, EMPTY_FORMACION)
+  formacionArchivo.value = null
   await Promise.all([cargarFormacionAcademica(), cargarCatalogosExpediente()])
 }
 async function quitarFormacionAcademica(id) {
@@ -2422,6 +2728,7 @@ async function quitarColegiatura(id) {
 const certificacionesProfesionales = ref([])
 const EMPTY_CERTIFICACION = { nombre: '', institucion_certificadora: '', fecha_emision: '', fecha_vencimiento: '', estado: 'vigente' }
 const nuevaCertificacion = reactive({ ...EMPTY_CERTIFICACION })
+const certificacionArchivo = ref(null)
 const certificacionError = ref(null)
 
 async function cargarCertificaciones() {
@@ -2429,18 +2736,34 @@ async function cargarCertificaciones() {
   if (error) { certificacionError.value = error.message; return }
   certificacionesProfesionales.value = data || []
 }
+function onCertificacionArchivoChange(e) { certificacionArchivo.value = e.target.files[0] || null }
 async function agregarCertificacion() {
   if (!nuevaCertificacion.nombre.trim()) return
   certificacionError.value = null
-  const payload = { ...nuevaCertificacion, fecha_emision: nuevaCertificacion.fecha_emision || null, fecha_vencimiento: nuevaCertificacion.fecha_vencimiento || null }
+  let documentoId = null
+  if (certificacionArchivo.value) {
+    const { data: doc, error: docErr } = await subirDocumento(cooperativaId.value, modal.data.id, certificacionArchivo.value, { nombre: certificacionArchivo.value.name })
+    if (docErr) { certificacionError.value = docErr.message; return }
+    documentoId = doc.id
+  }
+  const payload = { ...nuevaCertificacion, fecha_emision: nuevaCertificacion.fecha_emision || null, fecha_vencimiento: nuevaCertificacion.fecha_vencimiento || null, documento_id: documentoId }
   const { error } = await crearCertificacionProfesional(cooperativaId.value, modal.data.id, payload)
   if (error) { certificacionError.value = error.message; return }
   Object.assign(nuevaCertificacion, EMPTY_CERTIFICACION)
+  certificacionArchivo.value = null
   await cargarCertificaciones()
 }
 async function quitarCertificacion(id) {
   await eliminarCertificacionProfesional(id)
   await cargarCertificaciones()
+}
+
+// Enlace "Ver documento" reutilizado por Formación académica y Certificaciones.
+async function abrirDocumentoAdjunto(path) {
+  if (!path) return
+  const { url, error } = await getUrlDescarga(path)
+  if (error || !url) { certificacionError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
 }
 
 const cursosColaborador = ref([])
@@ -2680,7 +3003,7 @@ onMounted(async () => {
 const tabs = [
   { key: 'dashboard',    label: 'Inicio',        icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>` },
   { key: 'expedientes',  label: 'Expedientes',   icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` }, // eslint-disable-line
-  { key: 'documentos',   label: 'Documentos',    icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>` },
+  { key: 'documentos',   label: 'Documentación', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>` },
   { key: 'vacaciones',   label: 'Vacaciones',    icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
   { key: 'permisos',     label: 'Permisos',      icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` },
   { key: 'asistencia',   label: 'Asistencia',    icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>` },
@@ -2813,7 +3136,7 @@ const incapacidadesFiltradas = computed(() => incapacidades.value.filter((i) => 
 
 /* ── Solicitud + aprobación de vacaciones (modal en pestañas) ── */
 const vacTab = ref('solicitud')
-const EMPTY_VAC_FORM = { empleadoId: '', tipoVacacionId: '', fechaInicio: '', fechaFin: '', diasSolicitados: '', diasHabiles: '', observaciones: '' }
+const EMPTY_VAC_FORM = { empleadoId: '', tipoVacacionId: '', aprobadorDesignadoId: '', fechaInicio: '', fechaFin: '', diasSolicitados: '', diasHabiles: '', observaciones: '' }
 const vacForm = reactive({ ...EMPTY_VAC_FORM })
 const vacError = ref(null)
 const vacSaving = ref(false)
@@ -2900,6 +3223,7 @@ function abrirRevisarVacacion(v) {
   Object.assign(vacForm, {
     empleadoId: v.empleadoId,
     tipoVacacionId: v.tipoVacacionId || '',
+    aprobadorDesignadoId: v.aprobadorDesignadoId || '',
     fechaInicio: v.fechaInicioISO,
     fechaFin: v.fechaFinISO,
     diasSolicitados: v.dias,
@@ -3016,7 +3340,7 @@ async function eliminarVacacionConfirmada() {
 
 /* ── Solicitud + aprobación de permisos (modal en pestañas) ── */
 const permTab = ref('solicitud')
-const EMPTY_PERM_FORM = { empleadoId: '', tipoPermisoId: '', fechaInicio: '', fechaFin: '', horaInicio: '', horaFin: '', cantidadDias: '', cantidadHoras: '', motivo: '', observaciones: '' }
+const EMPTY_PERM_FORM = { empleadoId: '', tipoPermisoId: '', aprobadorDesignadoId: '', fechaInicio: '', fechaFin: '', horaInicio: '', horaFin: '', cantidadDias: '', cantidadHoras: '', motivo: '', observaciones: '' }
 const permForm = reactive({ ...EMPTY_PERM_FORM })
 const permError = ref(null)
 const permSaving = ref(false)
@@ -3083,6 +3407,7 @@ function abrirRevisarPermiso(p) {
   Object.assign(permForm, {
     empleadoId: p.empleadoId,
     tipoPermisoId: p.tipoPermisoId || '',
+    aprobadorDesignadoId: p.aprobadorDesignadoId || '',
     fechaInicio: p.fechaInicioISO,
     fechaFin: p.fechaFinISO,
     horaInicio: p.horaInicio || '',
@@ -3703,15 +4028,8 @@ async function confirmarMarcarSalida() {
   await cargarAsistencia()
 }
 
-/* ── Capacitaciones mock ────────────────── */
-const DEMO_CAPACITACIONES = [
-  { id: 1, nombre: 'Excel avanzado para finanzas', depto: 'Finanzas', categoria: 'Tecnología',  modalidad: 'Virtual',     modalidadClass: 'virtual',     fecha: '05/05/2026', horas: 16, instructor: 'TechPro CR',     asistentes: 8,  status: 'Finalizada',  statusClass: 'green' },
-  { id: 2, nombre: 'Atención al asociado',         depto: 'Operaciones', categoria: 'Servicio', modalidad: 'Presencial',   modalidadClass: 'presencial',  fecha: '12/05/2026', horas: 8,  instructor: 'Laura Soto',     asistentes: 14, status: 'Finalizada',  statusClass: 'green' },
-  { id: 3, nombre: 'Normativa SUGEF actualizada',  depto: 'Todos',       categoria: 'Normativa',modalidad: 'Virtual',     modalidadClass: 'virtual',     fecha: '20/06/2026', horas: 4,  instructor: 'SUGEF',          asistentes: 28, status: 'Programada',  statusClass: 'blue' },
-  { id: 4, nombre: 'Liderazgo y trabajo en equipo',depto: 'Admin.',      categoria: 'Liderazgo',modalidad: 'Mixta',       modalidadClass: 'mixta',       fecha: '10/07/2026', horas: 12, instructor: 'Consultores SA', asistentes: 6,  status: 'Programada',  statusClass: 'blue' },
-  { id: 5, nombre: 'Prevención de riesgos',        depto: 'Todos',       categoria: 'Normativa',modalidad: 'Presencial',  modalidadClass: 'presencial',  fecha: '15/03/2026', horas: 6,  instructor: 'INS',            asistentes: 32, status: 'Finalizada',  statusClass: 'green' },
-]
-const capacitaciones = ref(isSupabaseConfigured() ? [] : DEMO_CAPACITACIONES)
+/* ── Capacitaciones ────────────────── */
+const capacitaciones = ref([])
 
 async function loadCapacitaciones() {
   if (!isSupabaseConfigured()) return
@@ -3723,26 +4041,404 @@ onMounted(loadCapacitaciones)
 const capacitacionesStats = computed(() => {
   const list = capacitaciones.value
   return {
-    finalizadas: list.filter(c => c.status === 'Finalizada').length,
-    programadas: list.filter(c => c.status === 'Programada').length,
+    finalizadas: list.filter(c => c.estado === 'finalizada').length,
+    programadas: list.filter(c => c.estado === 'programada').length,
     horas: list.reduce((sum, c) => sum + (Number(c.horas) || 0), 0),
     asistentes: list.reduce((sum, c) => sum + (Number(c.asistentes) || 0), 0),
   }
 })
 
-const capacitacionForm = reactive({ nombre: '', categoria: '', modalidad: '', fecha: '', horas: '', instructor: '', estado: 'Programada' })
+const capFiltroTexto = ref('')
+const capFiltroCategoriaId = ref('')
+const capFiltroModalidadId = ref('')
+const capFiltroEstado = ref('')
+const capacitacionesFiltradas = computed(() => capacitaciones.value
+  .filter((c) => {
+    if (capFiltroTexto.value) {
+      const q = capFiltroTexto.value.trim().toLowerCase()
+      if (!(c.nombre || '').toLowerCase().includes(q) && !(c.instructor || '').toLowerCase().includes(q)) return false
+    }
+    if (capFiltroCategoriaId.value && c.categoriaId !== capFiltroCategoriaId.value) return false
+    if (capFiltroModalidadId.value && c.modalidadId !== capFiltroModalidadId.value) return false
+    if (capFiltroEstado.value && c.status !== capFiltroEstado.value) return false
+    return true
+  })
+  .map((c) => ({
+    ...c,
+    deptoLabel: (c.departamentosIds || []).length
+      ? c.departamentosIds.map((id) => departamentos.value.find((d) => d.id === id)?.nombre).filter(Boolean).join(', ')
+      : 'Todos',
+  }))
+)
+
+const ESTADO_CAP_DB_TO_FORM = { programada: 'Programada', en_curso: 'En curso', finalizada: 'Finalizada' }
+const EMPTY_CAP_FORM = {
+  nombre: '', categoriaId: '', modalidadId: '', fecha: '', horas: '',
+  instructorExterno: false, instructorNombre: '', instructorInstitucion: '', instructorCorreo: '', instructorTelefono: '',
+  estado: 'Programada', obligatoria: false, departamentosIds: [], descripcion: '',
+}
+const capacitacionForm = reactive({ ...EMPTY_CAP_FORM })
 const capacitacionError = ref(null)
+const capacitacionGuardando = ref(false)
+
+function abrirNuevaCapacitacion() {
+  modal.type = 'capacitacion'
+  modal.data = null
+  Object.assign(capacitacionForm, EMPTY_CAP_FORM, { departamentosIds: [] })
+  capacitacionError.value = null
+  documentosCapacitacion.value = []
+  modal.open = true
+}
+
+async function abrirEditarCapacitacion(cap) {
+  modal.type = 'capacitacion'
+  modal.data = cap
+  Object.assign(capacitacionForm, {
+    nombre: cap.nombre,
+    categoriaId: cap.categoriaId || '',
+    modalidadId: cap.modalidadId || '',
+    fecha: cap.fechaInicioISO,
+    horas: cap.horas || '',
+    instructorExterno: cap.instructorExterno,
+    instructorNombre: cap.instructorNombre || '',
+    instructorInstitucion: cap.instructorInstitucion || '',
+    instructorCorreo: cap.instructorCorreo || '',
+    instructorTelefono: cap.instructorTelefono || '',
+    estado: ESTADO_CAP_DB_TO_FORM[cap.estado] || 'Programada',
+    obligatoria: cap.obligatoria,
+    departamentosIds: [...(cap.departamentosIds || [])],
+    descripcion: cap.descripcion || '',
+  })
+  capacitacionError.value = null
+  modal.open = true
+  await cargarDocumentosCapacitacion(cap.id)
+}
 
 async function guardarCapacitacion() {
-  if (!isSupabaseConfigured()) { modal.open = false; return }
-  if (!capacitacionForm.nombre || !capacitacionForm.categoria || !capacitacionForm.modalidad || !capacitacionForm.fecha || !capacitacionForm.horas) return
+  if (!capacitacionForm.nombre || !capacitacionForm.categoriaId || !capacitacionForm.modalidadId || !capacitacionForm.fecha || !capacitacionForm.horas) return
   capacitacionError.value = null
-  const { error } = await crearCapacitacion(cooperativaId.value, capacitacionForm)
+  capacitacionGuardando.value = true
+  const { error } = modal.data
+    ? await actualizarCapacitacion(modal.data.id, capacitacionForm)
+    : await crearCapacitacion(cooperativaId.value, capacitacionForm)
+  capacitacionGuardando.value = false
   if (error) { capacitacionError.value = error.message; return }
-  Object.assign(capacitacionForm, { nombre: '', categoria: '', modalidad: '', fecha: '', horas: '', instructor: '', estado: 'Programada' })
   await loadCapacitaciones()
   modal.open = false
 }
+
+/* ── Documentos generales de una capacitación (plan, material, etc.) ── */
+const documentosCapacitacion = ref([])
+const capDocArchivoNuevo = ref(null)
+const subiendoCapDoc = ref(false)
+
+async function cargarDocumentosCapacitacion(capacitacionId) {
+  const { data } = await listDocumentosCapacitacion(capacitacionId)
+  documentosCapacitacion.value = data || []
+}
+
+function onCapDocArchivoChange(e) { capDocArchivoNuevo.value = e.target.files[0] || null }
+
+async function subirCapDoc() {
+  if (!capDocArchivoNuevo.value || !modal.data) return
+  subiendoCapDoc.value = true
+  const { error } = await subirDocumentoCapacitacion(cooperativaId.value, modal.data.id, capDocArchivoNuevo.value)
+  subiendoCapDoc.value = false
+  if (error) { capacitacionError.value = error.message; return }
+  capDocArchivoNuevo.value = null
+  await cargarDocumentosCapacitacion(modal.data.id)
+}
+
+async function descargarCapDoc(doc) {
+  const { url, error } = await getUrlDescarga(doc.storage_path)
+  if (error || !url) { capacitacionError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+async function quitarCapDoc(doc) {
+  const { error } = await eliminarDocumentoCapacitacion(doc)
+  if (error) { capacitacionError.value = error.message; return }
+  documentosCapacitacion.value = documentosCapacitacion.value.filter((d) => d.id !== doc.id)
+}
+
+/* ── Eliminar capacitación ── */
+const eliminandoCapacitacion = ref(false)
+const eliminarCapacitacionError = ref(null)
+
+function confirmarEliminarCapacitacion(cap) {
+  modal.type = 'eliminar-capacitacion'
+  modal.data = cap
+  eliminarCapacitacionError.value = null
+  modal.open = true
+}
+
+async function eliminarCapacitacionConfirmada() {
+  if (!modal.data) return
+  eliminandoCapacitacion.value = true
+  eliminarCapacitacionError.value = null
+  const { error } = await eliminarCapacitacion(modal.data.id)
+  eliminandoCapacitacion.value = false
+  if (error) { eliminarCapacitacionError.value = error.message; return }
+  modal.open = false
+  await loadCapacitaciones()
+}
+
+/* ── Gestionar asistentes de una capacitación ── */
+const asistentesCapacitacion = ref([])
+const asistenteNuevoId = ref('')
+const asistentesError = ref(null)
+const agregandoAsistente = ref(false)
+const empleadosSinAsistencia = computed(() => employees.value.filter((e) => !asistentesCapacitacion.value.some((a) => a.empleadoId === e.id)))
+const asistentesConCertificado = computed(() => asistentesCapacitacion.value.filter((a) => a.numeroCertificado || a.documentoCertificadoPath))
+const exportandoCertificados = ref(false)
+
+async function abrirAsistentesCapacitacion(cap) {
+  modal.type = 'asistentes-capacitacion'
+  modal.data = cap
+  asistenteNuevoId.value = ''
+  asistentesError.value = null
+  const { data } = await listAsistentesCapacitacion(cap.id)
+  asistentesCapacitacion.value = data || []
+  modal.open = true
+}
+
+async function agregarAsistente() {
+  if (!asistenteNuevoId.value) return
+  agregandoAsistente.value = true
+  asistentesError.value = null
+  const { error } = await agregarAsistenteCapacitacion(modal.data.id, asistenteNuevoId.value)
+  agregandoAsistente.value = false
+  if (error) { asistentesError.value = error.message; return }
+  asistenteNuevoId.value = ''
+  const { data } = await listAsistentesCapacitacion(modal.data.id)
+  asistentesCapacitacion.value = data || []
+  await loadCapacitaciones()
+}
+
+// Si la asistencia queda en "asistio", refleja la capacitación como
+// certificación en el expediente del colaborador (pestaña Certificaciones);
+// si no, retira ese registro (por si se había marcado por error).
+async function sincronizarCertificacionSiCorresponde(cap, a) {
+  if (a.estadoAsistencia === 'asistio') {
+    const vencida = a.fechaVencimientoCertificado && new Date(a.fechaVencimientoCertificado) < new Date()
+    await sincronizarCertificacionCapacitacion(
+      cooperativaId.value, a.empleadoId, a.id,
+      {
+        nombre: cap.nombre,
+        institucion_certificadora: a.certificadoInstitucion || cap.instructorInstitucion || null,
+        fecha_emision: a.fechaEmisionCertificado || cap.fechaInicioISO,
+        fecha_vencimiento: a.fechaVencimientoCertificado || null,
+        estado: vencida ? 'vencido' : 'vigente',
+      },
+      a.documentoCertificadoPath ? { path: a.documentoCertificadoPath, nombre: a.documentoCertificadoNombre } : null,
+    )
+  } else {
+    await quitarCertificacionCapacitacion(a.id)
+  }
+}
+
+async function actualizarAsistente(a) {
+  const { error } = await actualizarAsistenteCapacitacion(a.id, { estadoAsistencia: a.estadoAsistencia, calificacion: a.calificacion })
+  if (error) { asistentesError.value = error.message; return }
+  asistentesError.value = null
+  await sincronizarCertificacionSiCorresponde(modal.data, a)
+  await loadCapacitaciones()
+}
+
+async function quitarAsistente(a) {
+  const { error } = await quitarAsistenteCapacitacion(a.id)
+  if (error) { asistentesError.value = error.message; return }
+  asistentesCapacitacion.value = asistentesCapacitacion.value.filter((x) => x.id !== a.id)
+  await loadCapacitaciones()
+}
+
+async function exportarCertificados() {
+  if (!asistentesConCertificado.value.length) return
+  exportandoCertificados.value = true
+  await exportCertificadosCapacitacionZip(modal.data, asistentesConCertificado.value, async (path) => {
+    const { blob } = await descargarArchivo(path)
+    return blob
+  })
+  exportandoCertificados.value = false
+}
+
+/* ── Certificado de un asistente ── */
+const asignacionCapacitacionActual = ref(null)
+const asistenteParaCertificado = ref(null)
+const certificadoForm = reactive({ numeroCertificado: '', certificadoInstitucion: '', fechaEmisionCertificado: '', fechaVencimientoCertificado: '' })
+const certificadoArchivoNuevo = ref(null)
+const certificadoError = ref(null)
+const guardandoCertificado = ref(false)
+
+function abrirCertificadoAsistente(a) {
+  asignacionCapacitacionActual.value = modal.data
+  asistenteParaCertificado.value = a
+  Object.assign(certificadoForm, {
+    numeroCertificado: a.numeroCertificado || '',
+    certificadoInstitucion: a.certificadoInstitucion || modal.data?.instructorInstitucion || '',
+    fechaEmisionCertificado: a.fechaEmisionCertificado || '',
+    fechaVencimientoCertificado: a.fechaVencimientoCertificado || '',
+  })
+  certificadoArchivoNuevo.value = null
+  certificadoError.value = null
+  modal.type = 'certificado-asistente'
+}
+
+function onCertificadoArchivoChange(e) { certificadoArchivoNuevo.value = e.target.files[0] || null }
+
+async function recargarAsistentesTrasCertificado() {
+  const { data } = await listAsistentesCapacitacion(asignacionCapacitacionActual.value.id)
+  asistentesCapacitacion.value = data || []
+  asistenteParaCertificado.value = asistentesCapacitacion.value.find((x) => x.id === asistenteParaCertificado.value.id) || null
+}
+
+async function guardarCertificado() {
+  guardandoCertificado.value = true
+  certificadoError.value = null
+  const { error } = await guardarCertificadoAsistente(
+    cooperativaId.value, asistenteParaCertificado.value.empleadoId, asistenteParaCertificado.value.id,
+    { ...certificadoForm, documentoCertificadoPath: asistenteParaCertificado.value.documentoCertificadoPath, documentoCertificadoNombre: asistenteParaCertificado.value.documentoCertificadoNombre },
+    certificadoArchivoNuevo.value,
+  )
+  guardandoCertificado.value = false
+  if (error) { certificadoError.value = error.message; return }
+  await recargarAsistentesTrasCertificado()
+  if (asistenteParaCertificado.value) await sincronizarCertificacionSiCorresponde(asignacionCapacitacionActual.value, asistenteParaCertificado.value)
+  modal.type = 'asistentes-capacitacion'
+}
+
+async function quitarCertificadoAsistente() {
+  guardandoCertificado.value = true
+  certificadoError.value = null
+  const { error } = await eliminarCertificadoAsistente(asistenteParaCertificado.value.id, asistenteParaCertificado.value.documentoCertificadoPath)
+  guardandoCertificado.value = false
+  if (error) { certificadoError.value = error.message; return }
+  await recargarAsistentesTrasCertificado()
+  if (asistenteParaCertificado.value) await sincronizarCertificacionSiCorresponde(asignacionCapacitacionActual.value, asistenteParaCertificado.value)
+  modal.type = 'asistentes-capacitacion'
+}
+
+async function descargarCertificadoDoc(a) {
+  const { url, error } = await getUrlDescarga(a.documentoCertificadoPath)
+  if (error || !url) { certificadoError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+/* ── Documentación institucional (repositorio compartido) ── */
+const puedeGestionarDocInstitucional = computed(() => ['admin', 'consejo'].includes(currentUser.value?.profile?.role))
+
+const documentosInstitucionales = ref([])
+const docCategoriaActiva = ref(Object.keys(ESTRUCTURA_DOCUMENTAL)[0])
+const docSubcategoriaActiva = ref(ESTRUCTURA_DOCUMENTAL[docCategoriaActiva.value][0])
+const docInstFiltroTexto = ref('')
+
+async function cargarDocumentosInstitucionales() {
+  const { data } = await listDocumentosInstitucionales()
+  documentosInstitucionales.value = data || []
+}
+
+// Además del árbol fijo, incluye las categorías/subcategorías "Otro" que se
+// hayan escrito libremente al subir un documento, para que sigan siendo
+// navegables (si no, quedarían huérfanas y nadie podría volver a verlas).
+const categoriasDocDisponibles = computed(() => {
+  const fijas = Object.keys(ESTRUCTURA_DOCUMENTAL)
+  const libres = [...new Set(documentosInstitucionales.value.map((d) => d.categoria))].filter((c) => !fijas.includes(c))
+  return [...fijas, ...libres]
+})
+const subcategoriasDocDisponibles = computed(() => {
+  const fijas = ESTRUCTURA_DOCUMENTAL[docCategoriaActiva.value] || []
+  const libres = [...new Set(documentosInstitucionales.value.filter((d) => d.categoria === docCategoriaActiva.value).map((d) => d.subcategoria))].filter((s) => !fijas.includes(s))
+  return [...fijas, ...libres]
+})
+
+function seleccionarCategoriaDoc(cat) {
+  docCategoriaActiva.value = cat
+  docSubcategoriaActiva.value = (ESTRUCTURA_DOCUMENTAL[cat] || subcategoriasDocDisponibles.value)[0]
+}
+
+const documentosInstFiltrados = computed(() => documentosInstitucionales.value.filter((d) => {
+  if (d.categoria !== docCategoriaActiva.value || d.subcategoria !== docSubcategoriaActiva.value) return false
+  if (docInstFiltroTexto.value) {
+    const q = docInstFiltroTexto.value.trim().toLowerCase()
+    if (!d.nombre.toLowerCase().includes(q) && !(d.descripcion || '').toLowerCase().includes(q)) return false
+  }
+  return true
+}))
+
+async function abrirDocumentoInstitucional(d) {
+  const { url, error } = await getUrlDescargaInstitucional(d.storagePath)
+  if (error || !url) return
+  window.open(url, '_blank')
+}
+
+const EMPTY_DOC_INST_FORM = { categoria: Object.keys(ESTRUCTURA_DOCUMENTAL)[0], subcategoria: ESTRUCTURA_DOCUMENTAL[Object.keys(ESTRUCTURA_DOCUMENTAL)[0]][0], categoriaOtro: '', subcategoriaOtro: '', nombre: '', descripcion: '' }
+const docInstForm = reactive({ ...EMPTY_DOC_INST_FORM })
+const docInstArchivo = ref(null)
+const docInstError = ref(null)
+const subiendoDocInst = ref(false)
+
+function abrirNuevoDocInstitucional() {
+  modal.type = 'doc-institucional'
+  modal.data = null
+  Object.assign(docInstForm, EMPTY_DOC_INST_FORM, { categoria: docCategoriaActiva.value, subcategoria: docSubcategoriaActiva.value })
+  docInstArchivo.value = null
+  docInstError.value = null
+  modal.open = true
+}
+
+function onCategoriaDocInstChange() {
+  docInstForm.subcategoria = docInstForm.categoria === '__otro__' ? '' : ESTRUCTURA_DOCUMENTAL[docInstForm.categoria][0]
+  docInstForm.categoriaOtro = ''
+  docInstForm.subcategoriaOtro = ''
+}
+
+function onDocInstArchivoChange(e) { docInstArchivo.value = e.target.files[0] || null }
+
+async function subirDocInstitucional() {
+  const categoriaFinal = docInstForm.categoria === '__otro__' ? docInstForm.categoriaOtro.trim() : docInstForm.categoria
+  const subcategoriaFinal = (docInstForm.categoria === '__otro__' || docInstForm.subcategoria === '__otro__')
+    ? docInstForm.subcategoriaOtro.trim()
+    : docInstForm.subcategoria
+  if (!docInstForm.nombre.trim() || !docInstArchivo.value || !categoriaFinal || !subcategoriaFinal) return
+  docInstError.value = null
+  subiendoDocInst.value = true
+  const { error } = await subirDocumentoInstitucional(
+    cooperativaId.value, currentUser.value?.profile?.id,
+    { ...docInstForm, categoria: categoriaFinal, subcategoria: subcategoriaFinal },
+    docInstArchivo.value,
+  )
+  subiendoDocInst.value = false
+  if (error) { docInstError.value = error.message; return }
+  modal.open = false
+  if (ESTRUCTURA_DOCUMENTAL[categoriaFinal]) {
+    docCategoriaActiva.value = categoriaFinal
+    docSubcategoriaActiva.value = subcategoriaFinal
+  }
+  await cargarDocumentosInstitucionales()
+}
+
+const eliminandoDocInst = ref(false)
+const eliminarDocInstError = ref(null)
+
+function confirmarEliminarDocInstitucional(d) {
+  modal.type = 'eliminar-doc-institucional'
+  modal.data = d
+  eliminarDocInstError.value = null
+  modal.open = true
+}
+
+async function eliminarDocInstitucionalConfirmado() {
+  if (!modal.data) return
+  eliminandoDocInst.value = true
+  eliminarDocInstError.value = null
+  const { error } = await eliminarDocumentoInstitucional(modal.data)
+  eliminandoDocInst.value = false
+  if (error) { eliminarDocInstError.value = error.message; return }
+  modal.open = false
+  await cargarDocumentosInstitucionales()
+}
+
+onMounted(cargarDocumentosInstitucionales)
 
 </script>
 
@@ -3907,6 +4603,8 @@ async function guardarCapacitacion() {
 .action-btn:hover { color: #133C65; background: #EBF3FF; }
 .dark .action-btn { color: #64748B; }
 .dark .action-btn:hover { color: #93B8D8; background: rgba(147,184,216,0.12); }
+.action-btn--green { color: #1A9152; }
+.dark .action-btn--green { color: #34D399; }
 .action-btn--green:hover { color: #1A9152; background: rgba(26,145,82,0.1); }
 .action-btn--red:hover { color: #C0392B; background: rgba(192,57,43,0.1); }
 
@@ -4203,6 +4901,21 @@ async function guardarCapacitacion() {
 .exp-tab-item--active { background: #133C65; color: white; }
 .dark .exp-tab-item--active { background: #2D5A8A; color: white; }
 .exp-tab-item--disabled { opacity: 0.45; }
+
+.doc-inst-layout { display: grid; grid-template-columns: 210px 1fr; gap: 20px; margin-top: 4px; }
+@media (max-width: 720px) { .doc-inst-layout { grid-template-columns: 1fr; } }
+.doc-inst-categorias { display: flex; flex-direction: column; gap: 4px; }
+.doc-inst-cat-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  text-align: left; padding: 11px 14px; border-radius: 10px; border: 1.5px solid #E7EFF7; background: white;
+  font-size: 13px; font-weight: 600; color: #1A2B3C; cursor: pointer; transition: all 0.15s;
+}
+.dark .doc-inst-cat-btn { background: #1D293D; border-color: #2A3B57; color: #E2E8F0; }
+.doc-inst-cat-btn:hover { border-color: #93B8D8; }
+.doc-inst-cat-btn--active { background: #133C65; border-color: #133C65; color: white; }
+.dark .doc-inst-cat-btn--active { background: #2D5A8A; border-color: #2D5A8A; }
+.doc-inst-cat-count { font-size: 11px; font-weight: 700; opacity: 0.7; }
+.doc-inst-subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
 .exp-tab-content { min-width: 0; max-height: 60vh; overflow-y: auto; padding-right: 4px; }
 
 .exp-subsection { display: flex; flex-direction: column; gap: 12px; }
@@ -4212,6 +4925,8 @@ async function guardarCapacitacion() {
 
 .exp-mini-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .exp-mini-empty { font-size: 12.5px; color: #7A90A0; padding: 6px 0; }
+.exp-doc-link { color: #133C65; text-decoration: underline; }
+.dark .exp-doc-link { color: #93B8D8; }
 .exp-mini-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 8px 4px; border-bottom: 1px solid #F0F4F8; font-size: 13px; color: #1A2B3C;

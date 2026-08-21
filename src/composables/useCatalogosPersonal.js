@@ -11,6 +11,8 @@ export const TIPOS_CATALOGO = [
   { key: 'institucion_educativa', label: 'Instituciones educativas' },
   { key: 'colegio_profesional', label: 'Colegios profesionales' },
   { key: 'estado_laboral', label: 'Estados laborales' },
+  { key: 'categoria_capacitacion', label: 'Categorías de capacitación' },
+  { key: 'modalidad_capacitacion', label: 'Modalidades de capacitación' },
 ]
 
 export function useCatalogosPersonal() {

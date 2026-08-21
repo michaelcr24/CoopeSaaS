@@ -34,6 +34,8 @@ function mapVacacionRow(row) {
     numeroSolicitud: row.numero_solicitud,
     tipoVacacion: row.tipo?.nombre || '',
     tipoVacacionId: row.tipo_vacacion_id,
+    aprobadorDesignadoId: row.aprobador_designado_id,
+    aprobadorDesignado: [row.aprobador_designado?.nombre, row.aprobador_designado?.primer_apellido, row.aprobador_designado?.segundo_apellido].filter(Boolean).join(' '),
     fechaSolicitud: formatFecha(row.fecha_solicitud),
     inicio: formatFecha(row.fecha_inicio),
     fin: formatFecha(row.fecha_fin),
@@ -74,6 +76,8 @@ function mapPermisoSolicitudRow(row) {
     numeroSolicitud: row.numero_solicitud,
     tipoPermiso: row.tipo?.nombre || '',
     tipoPermisoId: row.tipo_permiso_id,
+    aprobadorDesignadoId: row.aprobador_designado_id,
+    aprobadorDesignado: [row.aprobador_designado?.nombre, row.aprobador_designado?.primer_apellido, row.aprobador_designado?.segundo_apellido].filter(Boolean).join(' '),
     fechaSolicitud: formatFecha(row.fecha_solicitud),
     inicio: formatFecha(row.fecha_inicio),
     fin: formatFecha(row.fecha_fin),
@@ -94,6 +98,42 @@ function mapPermisoSolicitudRow(row) {
     motivoRechazo: row.motivo_rechazo,
     documentoPath: row.documento_path,
     documentoNombre: row.documento_nombre,
+  }
+}
+
+const ESTADO_CAPACITACION_LABEL = {
+  programada: { label: 'Programada', class: 'blue' },
+  en_curso: { label: 'En curso', class: 'yellow' },
+  finalizada: { label: 'Finalizada', class: 'green' },
+}
+const ESTADO_CAPACITACION_FORM_TO_DB = { 'Programada': 'programada', 'En curso': 'en_curso', 'Finalizada': 'finalizada' }
+
+function mapCapacitacionRow(row) {
+  const estadoInfo = ESTADO_CAPACITACION_LABEL[row.estado] ?? { label: row.estado, class: 'gray' }
+  return {
+    id: row.id,
+    nombre: row.titulo,
+    descripcion: row.descripcion,
+    categoriaId: row.categoria?.id || null,
+    categoria: row.categoria?.nombre || '',
+    modalidadId: row.modalidad?.id || null,
+    modalidad: row.modalidad?.nombre || '',
+    modalidadClass: (row.modalidad?.nombre || '').toLowerCase(),
+    fecha: formatFecha(row.fecha_inicio),
+    fechaInicioISO: row.fecha_inicio,
+    horas: Number(row.duracion_horas || 0),
+    instructorExterno: !!row.instructor_externo,
+    instructorNombre: row.instructor_nombre || '',
+    instructor: row.instructor_nombre || '—',
+    instructorInstitucion: row.instructor_institucion || '',
+    instructorCorreo: row.instructor_correo || '',
+    instructorTelefono: row.instructor_telefono || '',
+    obligatoria: !!row.obligatoria,
+    departamentosIds: row.departamentos_ids || [],
+    estado: row.estado,
+    status: estadoInfo.label,
+    statusClass: estadoInfo.class,
+    asistentes: (row.capacitacion_empleados || []).filter((p) => p.estado_asistencia === 'asistio' || p.estado_asistencia === 'parcial').length,
   }
 }
 
@@ -386,7 +426,7 @@ export function usePersonal() {
   }
 
   // ── Formacion academica / colegiaturas / certificaciones / cursos ──
-  const formacionAcademicaCrud = makeExpedienteCrud('formacion_academica')
+  const formacionAcademicaCrud = makeExpedienteCrud('formacion_academica', '*, documentos_empleado(storage_path, nombre)')
   const listFormacionAcademica = formacionAcademicaCrud.list
   const crearFormacionAcademica = formacionAcademicaCrud.crear
   const eliminarFormacionAcademica = formacionAcademicaCrud.eliminar
@@ -396,7 +436,7 @@ export function usePersonal() {
   const crearColegiatura = colegiaturasCrud.crear
   const eliminarColegiatura = colegiaturasCrud.eliminar
 
-  const certificacionesCrud = makeExpedienteCrud('certificaciones_profesionales')
+  const certificacionesCrud = makeExpedienteCrud('certificaciones_profesionales', '*, documentos_empleado(storage_path, nombre)')
   const listCertificacionesProfesionales = certificacionesCrud.list
   const crearCertificacionProfesional = certificacionesCrud.crear
   const eliminarCertificacionProfesional = certificacionesCrud.eliminar
@@ -467,7 +507,7 @@ export function usePersonal() {
     if (!isSupabaseConfigured()) return { data: [], error: null }
     const { data, error } = await supabase
       .from('vacaciones_solicitudes')
-      .select('*, empleados(nombre, primer_apellido, segundo_apellido), tipo:catalogos_personal!tipo_vacacion_id(nombre), aprobador:profiles!aprobado_por(full_name)')
+      .select('*, empleados(nombre, primer_apellido, segundo_apellido), tipo:catalogos_personal!tipo_vacacion_id(nombre), aprobador:profiles!aprobado_por(full_name), aprobador_designado:empleados!aprobador_designado_id(nombre, primer_apellido, segundo_apellido)')
       .order('fecha_solicitud', { ascending: false })
     if (error) return { data: null, error }
     return { data: data.map(mapVacacionRow), error: null }
@@ -480,6 +520,7 @@ export function usePersonal() {
         cooperativa_id: cooperativaId,
         empleado_id: empleadoId,
         tipo_vacacion_id: payload.tipoVacacionId || null,
+        aprobador_designado_id: payload.aprobadorDesignadoId || null,
         fecha_inicio: payload.fechaInicio,
         fecha_fin: payload.fechaFin,
         dias_solicitados: Number(payload.diasSolicitados) || 0,
@@ -495,6 +536,7 @@ export function usePersonal() {
       .from('vacaciones_solicitudes')
       .update({
         tipo_vacacion_id: payload.tipoVacacionId || null,
+        aprobador_designado_id: payload.aprobadorDesignadoId || null,
         fecha_inicio: payload.fechaInicio,
         fecha_fin: payload.fechaFin,
         dias_solicitados: Number(payload.diasSolicitados) || 0,
@@ -566,7 +608,7 @@ export function usePersonal() {
     if (!isSupabaseConfigured()) return { data: [], error: null }
     const { data, error } = await supabase
       .from('permisos_solicitudes')
-      .select('*, empleados(nombre, primer_apellido, segundo_apellido), tipo:catalogos_personal!tipo_permiso_id(nombre), aprobador:profiles!aprobado_por(full_name)')
+      .select('*, empleados(nombre, primer_apellido, segundo_apellido), tipo:catalogos_personal!tipo_permiso_id(nombre), aprobador:profiles!aprobado_por(full_name), aprobador_designado:empleados!aprobador_designado_id(nombre, primer_apellido, segundo_apellido)')
       .order('fecha_solicitud', { ascending: false })
     if (error) return { data: null, error }
     return { data: data.map(mapPermisoSolicitudRow), error: null }
@@ -579,6 +621,7 @@ export function usePersonal() {
         cooperativa_id: cooperativaId,
         empleado_id: empleadoId,
         tipo_permiso_id: payload.tipoPermisoId || null,
+        aprobador_designado_id: payload.aprobadorDesignadoId || null,
         fecha_inicio: payload.fechaInicio,
         fecha_fin: payload.fechaFin,
         hora_inicio: payload.horaInicio || null,
@@ -597,6 +640,7 @@ export function usePersonal() {
       .from('permisos_solicitudes')
       .update({
         tipo_permiso_id: payload.tipoPermisoId || null,
+        aprobador_designado_id: payload.aprobadorDesignadoId || null,
         fecha_inicio: payload.fechaInicio,
         fecha_fin: payload.fechaFin,
         hora_inicio: payload.horaInicio || null,
@@ -937,45 +981,231 @@ export function usePersonal() {
     if (!isSupabaseConfigured()) return { data: [], error: null }
     const { data, error } = await supabase
       .from('capacitaciones')
-      .select('*, capacitacion_empleados(empleado_id, asistio)')
+      .select('*, categoria:catalogos_personal!categoria_id(id, nombre), modalidad:catalogos_personal!modalidad_id(id, nombre), capacitacion_empleados(empleado_id, estado_asistencia)')
       .order('fecha_inicio', { ascending: false })
     if (error) return { data: null, error }
+    return { data: data.map(mapCapacitacionRow), error: null }
+  }
+
+  function capacitacionPayload(payload) {
     return {
-      data: data.map((c) => ({
-        id: c.id, nombre: c.titulo, depto: c.categoria || 'Todos', categoria: c.categoria || '',
-        modalidad: c.modalidad || '', modalidadClass: (c.modalidad || '').toLowerCase(),
-        fecha: formatFecha(c.fecha_inicio),
-        horas: Number(c.duracion_horas || 0), instructor: c.instructor || '—',
-        asistentes: (c.capacitacion_empleados || []).filter((p) => p.asistio).length,
-        status: c.estado === 'programada' ? 'Programada' : c.estado === 'finalizada' ? 'Finalizada' : c.estado,
-        statusClass: c.estado === 'programada' ? 'blue' : c.estado === 'finalizada' ? 'green' : 'gray',
-      })),
-      error: null,
+      titulo: payload.nombre,
+      categoria_id: payload.categoriaId || null,
+      modalidad_id: payload.modalidadId || null,
+      instructor_externo: !!payload.instructorExterno,
+      instructor_nombre: payload.instructorNombre || null,
+      instructor_institucion: payload.instructorInstitucion || null,
+      instructor_correo: payload.instructorCorreo || null,
+      instructor_telefono: payload.instructorTelefono || null,
+      fecha_inicio: payload.fecha,
+      duracion_horas: Number(payload.horas) || null,
+      estado: ESTADO_CAPACITACION_FORM_TO_DB[payload.estado] || 'programada',
+      departamentos_ids: payload.departamentosIds?.length ? payload.departamentosIds : null,
+      obligatoria: !!payload.obligatoria,
+      descripcion: payload.descripcion || null,
     }
   }
 
   async function crearCapacitacion(cooperativaId, payload) {
     return supabase
       .from('capacitaciones')
-      .insert({
-        cooperativa_id: cooperativaId,
-        titulo: payload.nombre,
-        categoria: payload.categoria,
-        modalidad: payload.modalidad,
-        instructor: payload.instructor,
-        fecha_inicio: payload.fecha,
-        duracion_horas: Number(payload.horas) || null,
-        estado: (payload.estado || 'programada').toLowerCase(),
-      })
+      .insert({ cooperativa_id: cooperativaId, ...capacitacionPayload(payload) })
       .select()
       .single()
+  }
+
+  async function actualizarCapacitacion(id, payload) {
+    return supabase.from('capacitaciones').update(capacitacionPayload(payload)).eq('id', id).select().single()
+  }
+
+  async function eliminarCapacitacion(id) {
+    return supabase.from('capacitaciones').delete().eq('id', id)
+  }
+
+  async function listAsistentesCapacitacion(capacitacionId) {
+    if (!isSupabaseConfigured()) return { data: [], error: null }
+    const { data, error } = await supabase
+      .from('capacitacion_empleados')
+      .select(`id, empleado_id, estado_asistencia, calificacion,
+        numero_certificado, certificado_institucion, fecha_emision_certificado, fecha_vencimiento_certificado,
+        documento_certificado_path, documento_certificado_nombre,
+        empleados(nombre, primer_apellido, segundo_apellido)`)
+      .eq('capacitacion_id', capacitacionId)
+    if (error) return { data: null, error }
+    return {
+      data: data.map((r) => ({
+        id: r.id,
+        empleadoId: r.empleado_id,
+        nombre: [r.empleados?.nombre, r.empleados?.primer_apellido, r.empleados?.segundo_apellido].filter(Boolean).join(' '),
+        estadoAsistencia: r.estado_asistencia,
+        calificacion: r.calificacion,
+        numeroCertificado: r.numero_certificado,
+        certificadoInstitucion: r.certificado_institucion,
+        fechaEmisionCertificado: r.fecha_emision_certificado,
+        fechaVencimientoCertificado: r.fecha_vencimiento_certificado,
+        documentoCertificadoPath: r.documento_certificado_path,
+        documentoCertificadoNombre: r.documento_certificado_nombre,
+      })),
+      error: null,
+    }
+  }
+
+  async function agregarAsistenteCapacitacion(capacitacionId, empleadoId) {
+    return supabase.from('capacitacion_empleados').insert({ capacitacion_id: capacitacionId, empleado_id: empleadoId }).select().single()
+  }
+
+  async function actualizarAsistenteCapacitacion(id, { estadoAsistencia, calificacion }) {
+    return supabase
+      .from('capacitacion_empleados')
+      .update({ estado_asistencia: estadoAsistencia || null, calificacion: calificacion !== '' && calificacion != null ? Number(calificacion) : null })
+      .eq('id', id)
+      .select()
+      .single()
+  }
+
+  async function quitarAsistenteCapacitacion(id) {
+    return supabase.from('capacitacion_empleados').delete().eq('id', id)
+  }
+
+  async function guardarCertificadoAsistente(cooperativaId, empleadoId, capacitacionEmpleadoId, payload, file) {
+    let documentoPath = payload.documentoCertificadoPath || null
+    let documentoNombre = payload.documentoCertificadoNombre || null
+    if (file) {
+      const path = `${cooperativaId}/${empleadoId}/certificados-capacitacion/${capacitacionEmpleadoId}-${Date.now()}-${file.name}`
+      const { error: upErr } = await supabase.storage.from(BUCKET_DOCUMENTOS).upload(path, file)
+      if (upErr) return { data: null, error: upErr }
+      if (documentoPath) await supabase.storage.from(BUCKET_DOCUMENTOS).remove([documentoPath])
+      documentoPath = path
+      documentoNombre = file.name
+    }
+    return supabase
+      .from('capacitacion_empleados')
+      .update({
+        numero_certificado: payload.numeroCertificado || null,
+        certificado_institucion: payload.certificadoInstitucion || null,
+        fecha_emision_certificado: payload.fechaEmisionCertificado || null,
+        fecha_vencimiento_certificado: payload.fechaVencimientoCertificado || null,
+        documento_certificado_path: documentoPath,
+        documento_certificado_nombre: documentoNombre,
+      })
+      .eq('id', capacitacionEmpleadoId)
+      .select()
+      .single()
+  }
+
+  async function eliminarCertificadoAsistente(capacitacionEmpleadoId, documentoPath) {
+    if (documentoPath) await supabase.storage.from(BUCKET_DOCUMENTOS).remove([documentoPath])
+    return supabase
+      .from('capacitacion_empleados')
+      .update({
+        numero_certificado: null, certificado_institucion: null,
+        fecha_emision_certificado: null, fecha_vencimiento_certificado: null,
+        documento_certificado_path: null, documento_certificado_nombre: null,
+      })
+      .eq('id', capacitacionEmpleadoId)
+      .select()
+      .single()
+  }
+
+  // Cuando la asistencia de un colaborador a una capacitación queda en
+  // "asistio", refleja esa capacitación como certificación en su expediente
+  // (pestaña Certificaciones); si deja de estar en "asistio", se retira. Se
+  // vincula por capacitacion_empleado_id para que quede idempotente (no
+  // duplica el registro cada vez que se guarda el certificado).
+  // documentoCertificado ({ path, nombre } | null) es el documento FIRMADO
+  // que se adjunta manualmente en el modal "Certificado" — nunca el PDF que
+  // se genera al exportar el .zip masivo, que es solo para descarga y no se
+  // guarda en Storage. Se reutiliza la misma ruta (sin volver a subir el
+  // archivo); si ya existía un documentos_empleado enlazado se actualiza,
+  // si el certificado se destapa se desvincula (sin borrar el archivo, que
+  // sigue siendo propiedad de capacitacion_empleados).
+  async function sincronizarCertificacionCapacitacion(cooperativaId, empleadoId, capacitacionEmpleadoId, payload, documentoCertificado) {
+    const { data: existente } = await supabase
+      .from('certificaciones_profesionales')
+      .select('id, documento_id')
+      .eq('capacitacion_empleado_id', capacitacionEmpleadoId)
+      .maybeSingle()
+
+    let documentoId = existente?.documento_id || null
+    if (documentoCertificado?.path) {
+      const nombre = documentoCertificado.nombre || 'Certificado de capacitación'
+      if (documentoId) {
+        await supabase.from('documentos_empleado').update({ storage_path: documentoCertificado.path, nombre }).eq('id', documentoId)
+      } else {
+        const { data: userData } = await supabase.auth.getUser()
+        const { data: doc } = await supabase
+          .from('documentos_empleado')
+          .insert({ cooperativa_id: cooperativaId, empleado_id: empleadoId, nombre, storage_path: documentoCertificado.path, subido_por: userData?.user?.id || null })
+          .select('id')
+          .single()
+        documentoId = doc?.id || null
+      }
+    } else if (documentoId) {
+      await supabase.from('documentos_empleado').delete().eq('id', documentoId)
+      documentoId = null
+    }
+
+    const finalPayload = { ...payload, documento_id: documentoId }
+    if (existente) {
+      return supabase.from('certificaciones_profesionales').update(finalPayload).eq('id', existente.id).select().single()
+    }
+    return supabase
+      .from('certificaciones_profesionales')
+      .insert({ cooperativa_id: cooperativaId, empleado_id: empleadoId, capacitacion_empleado_id: capacitacionEmpleadoId, ...finalPayload })
+      .select()
+      .single()
+  }
+
+  async function quitarCertificacionCapacitacion(capacitacionEmpleadoId) {
+    const { data: existente } = await supabase
+      .from('certificaciones_profesionales')
+      .select('id, documento_id')
+      .eq('capacitacion_empleado_id', capacitacionEmpleadoId)
+      .maybeSingle()
+    if (!existente) return { error: null }
+    if (existente.documento_id) await supabase.from('documentos_empleado').delete().eq('id', existente.documento_id)
+    return supabase.from('certificaciones_profesionales').delete().eq('id', existente.id)
+  }
+
+  async function descargarDocumentoCertificado(path) {
+    return supabase.storage.from(BUCKET_DOCUMENTOS).download(path)
+  }
+
+  /* ── Documentos generales de una capacitación (plan, material, etc.) ── */
+  async function listDocumentosCapacitacion(capacitacionId) {
+    if (!isSupabaseConfigured()) return { data: [], error: null }
+    return supabase.from('capacitacion_documentos').select('*').eq('capacitacion_id', capacitacionId).order('created_at', { ascending: false })
+  }
+
+  async function subirDocumentoCapacitacion(cooperativaId, capacitacionId, file) {
+    const path = `${cooperativaId}/capacitaciones/${capacitacionId}/${Date.now()}-${file.name}`
+    const { error: upErr } = await supabase.storage.from(BUCKET_DOCUMENTOS).upload(path, file)
+    if (upErr) return { data: null, error: upErr }
+    const { data: userData } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('capacitacion_documentos')
+      .insert({ cooperativa_id: cooperativaId, capacitacion_id: capacitacionId, nombre: file.name, storage_path: path, subido_por: userData?.user?.id || null })
+      .select()
+      .single()
+    if (error) await supabase.storage.from(BUCKET_DOCUMENTOS).remove([path])
+    return { data, error }
+  }
+
+  async function eliminarDocumentoCapacitacion(doc) {
+    await supabase.storage.from(BUCKET_DOCUMENTOS).remove([doc.storage_path])
+    return supabase.from('capacitacion_documentos').delete().eq('id', doc.id)
   }
 
   return {
     listDepartamentos, listDepartamentosTodos, crearDepartamento, toggleDepartamentoActivo,
     listCargos, listEmpleados, createEmpleado, updateEmpleado, eliminarEmpleado,
     findOrCreateDepartamento, findOrCreateCargo, listPerfilesCooperativa,
-    listPermisos, crearPermiso, resolverPermiso, listCapacitaciones, crearCapacitacion,
+    listPermisos, crearPermiso, resolverPermiso,
+    listCapacitaciones, crearCapacitacion, actualizarCapacitacion, eliminarCapacitacion,
+    listAsistentesCapacitacion, agregarAsistenteCapacitacion, actualizarAsistenteCapacitacion, quitarAsistenteCapacitacion,
+    guardarCertificadoAsistente, eliminarCertificadoAsistente, descargarDocumentoCertificado,
+    sincronizarCertificacionCapacitacion, quitarCertificacionCapacitacion,
+    listDocumentosCapacitacion, subirDocumentoCapacitacion, eliminarDocumentoCapacitacion,
     listPermisosSolicitudes, crearPermisoSolicitud, actualizarPermisoSolicitud, resolverPermisoSolicitud, eliminarPermisoSolicitud,
     subirDocumentoPermiso, eliminarDocumentoPermiso,
     listIncapacidades, crearIncapacidad, actualizarIncapacidad, registrarReincorporacion, anularIncapacidad, eliminarIncapacidad,

@@ -65,6 +65,7 @@
         <button type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': detalleTab === 'calculo' }" @click="detalleTab = 'calculo'">6. Cálculo</button>
         <button type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': detalleTab === 'aprobacion' }" @click="detalleTab = 'aprobacion'">7. Aprobación</button>
         <button type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': detalleTab === 'preview' }" @click="detalleTab = 'preview'">8. Vista previa</button>
+        <button type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': detalleTab === 'evaluar' }" @click="detalleTab = 'evaluar'">9. Evaluar</button>
       </div>
 
       <!-- Tab 1: General -->
@@ -106,9 +107,6 @@
                 <td class="cell-actions">
                   <button class="action-btn" title="Gestionar evaluadores" @click="abrirGestionParticipantes(a)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  </button>
-                  <button v-if="a.estado !== 'en_proceso'" class="action-btn" title="Ver resultado" @click="abrirResultado(a)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
                   <button class="action-btn action-btn--red" title="Quitar" @click="confirmarEliminarAsignacion(a)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -324,12 +322,43 @@
           <p v-if="!secciones.length" class="exp-mini-empty">Sin secciones todavía</p>
         </div>
       </div>
+
+      <!-- Tab 9: Evaluar -->
+      <div v-else-if="detalleTab === 'evaluar'" class="ep-panel">
+        <div class="data-card">
+          <h4 class="ep-card-title">Colaboradores evaluados</h4>
+          <table class="data-table">
+            <thead><tr><th>Colaborador</th><th>Departamento</th><th>Evaluadores</th><th>N°</th><th>Estado</th><th>Puntaje</th><th>Acciones</th></tr></thead>
+            <tbody>
+              <tr v-for="a in asignaciones" :key="a.id">
+                <td>
+                  <div class="cell-user">
+                    <div class="cell-avatar" :style="{ background: a.color }">{{ a.initials }}</div>
+                    <span>{{ a.name }}</span>
+                  </div>
+                </td>
+                <td>{{ a.dept }}</td>
+                <td>{{ conteoParticipantes[a.id]?.completados ?? 0 }} / {{ conteoParticipantes[a.id]?.total ?? 0 }}</td>
+                <td>{{ a.numero }}</td>
+                <td><span class="badge" :class="`badge--${a.statusClass}`">{{ a.status }}</span></td>
+                <td>{{ a.puntajeTotal != null ? Math.round(a.puntajeTotal) + ' / 100' : '—' }}<span v-if="a.resultadoEtiqueta"> ({{ a.resultadoEtiqueta }})</span></td>
+                <td class="cell-actions">
+                  <button class="action-btn" title="Iniciar / editar evaluación" @click="abrirEvaluarColaborador(a)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!asignaciones.length"><td colspan="7" class="empty-row">Sin colaboradores asignados todavía.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </template>
 
     <!-- ══════════════ MODALES ══════════════ -->
     <Transition name="modal-fade">
       <div v-if="modal.open" class="modal-backdrop" @click.self="modal.open = false">
-        <div class="modal-box" :class="{ 'modal-box--expediente': modal.type === 'evaluar' || modal.type === 'resultado' || modal.type === 'gestionar-participantes' }">
+        <div class="modal-box" :class="{ 'modal-box--expediente': modal.type === 'resultado' || modal.type === 'gestionar-participantes' || modal.type === 'evaluar-colaborador', 'modal-box--evaluar': modal.type === 'evaluar' }">
           <button class="modal-close" @click="modal.open = false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -391,9 +420,6 @@
                   <div class="exp-mini-sub">{{ p.tipoEvaluadorLabel }} · <span class="badge" :class="`badge--${p.statusClass}`">{{ p.status }}</span></div>
                 </div>
                 <div style="display:flex; gap:4px;">
-                  <button type="button" class="action-btn" title="Evaluar" @click="abrirEvaluar(p)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
                   <button type="button" class="action-btn action-btn--red" title="Quitar" @click="quitarParticipante(p)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
@@ -424,6 +450,39 @@
             </form>
           </template>
 
+          <!-- Evaluar colaborador: elegir a cuál evaluador de este colaborador editarle su evaluación -->
+          <template v-if="modal.type === 'evaluar-colaborador' && asignacionParaParticipantes">
+            <h3 class="modal-title">Evaluar a {{ asignacionParaParticipantes.name }}</h3>
+            <p class="modal-subtitle">{{ asignacionParaParticipantes.numero }}</p>
+
+            <ul class="exp-mini-list">
+              <li v-if="!participantesActuales.length" class="exp-mini-empty">Este colaborador todavía no tiene evaluadores asignados. Agrégalos desde "Gestionar evaluadores" en la pestaña 2.</li>
+              <li v-for="p in participantesActuales" :key="p.id" class="exp-mini-item">
+                <div>
+                  <strong>{{ p.nombreEvaluador }}</strong>
+                  <div class="exp-mini-sub">{{ p.tipoEvaluadorLabel }} · <span class="badge" :class="`badge--${p.statusClass}`">{{ p.status }}</span></div>
+                </div>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn-outline btn-outline--sm" @click="abrirEvaluar(p)">Evaluar</button>
+                  <button type="button" class="btn-outline btn-outline--sm btn-outline--danger" @click="confirmarEliminarParticipante(p)">Eliminar evaluación</button>
+                </div>
+              </li>
+            </ul>
+            <div class="modal-actions"><button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button></div>
+          </template>
+
+          <!-- Confirmar eliminación de una evaluación (participante) -->
+          <template v-if="modal.type === 'eliminar-participante' && participanteAEliminar">
+            <h3 class="modal-title">Eliminar evaluación</h3>
+            <p class="modal-subtitle">¿Seguro que deseas eliminar la evaluación de <strong>{{ participanteAEliminar.nombreEvaluador }}</strong> ({{ participanteAEliminar.tipoEvaluadorLabel }})? Se perderán sus respuestas. No se puede deshacer.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.type = 'evaluar-colaborador'">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoParticipante" @click="eliminarParticipanteConfirmado">
+                {{ eliminandoParticipante ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </template>
+
           <!-- Realizar / ver evaluación de un participante -->
           <template v-if="modal.type === 'evaluar' && participanteActual">
             <h3 class="modal-title">{{ evaluacionActual.nombre }}</h3>
@@ -433,41 +492,48 @@
               Preguntas completadas: {{ preguntasCompletadas }} / {{ preguntas.length }}
             </div>
 
+            <div class="ep-seccion-tabs">
+              <button
+                v-for="s in seccionesConPreguntas.filter(s => s.preguntas.length)" :key="s.id"
+                type="button" class="exp-tab-item"
+                :class="{ 'exp-tab-item--active': seccionTabActiva === s.id }"
+                @click="seccionTabActiva = s.id"
+              >{{ s.nombre }} ({{ preguntasCompletadasEnSeccion(s) }}/{{ s.preguntas.length }})</button>
+            </div>
+
             <div class="ep-preguntas-form">
-              <div v-for="s in seccionesConPreguntas" :key="s.id">
-                <div v-if="s.preguntas.length" class="ep-seccion-titulo">{{ s.nombre }}</div>
-                <div v-for="p in s.preguntas" :key="p.id" class="ep-pregunta-item">
-                  <label class="ep-pregunta-texto">{{ p.texto }}<span v-if="p.obligatoria" class="req"> *</span></label>
-                  <p v-if="p.descripcion" class="exp-hint">{{ p.descripcion }}</p>
+              <div v-for="p in preguntasSeccionActiva" :key="p.id" class="ep-pregunta-item">
+                <label class="ep-pregunta-texto">{{ p.texto }}<span v-if="p.obligatoria" class="req"> *</span></label>
+                <p v-if="p.descripcion" class="exp-hint">{{ p.descripcion }}</p>
 
-                  <div v-if="esTipoEscala(p.tipo)">
-                    <select v-model="respuestasForm[p.id].valorNumerico" :disabled="!puedeEvaluar">
-                      <option value="">Seleccionar</option>
-                      <option v-for="v in escalas.find(e => e.id === p.escalaId)?.valores || []" :key="v.id" :value="v.valor">{{ v.valor }} = {{ v.etiqueta }}</option>
-                    </select>
-                  </div>
-                  <div v-else-if="p.tipo === 'texto_libre'"><textarea v-model="respuestasForm[p.id].valorTexto" rows="2" :disabled="!puedeEvaluar"></textarea></div>
-                  <div v-else-if="p.tipo === 'seleccion_unica'">
-                    <select v-model="respuestasForm[p.id].valorTexto" :disabled="!puedeEvaluar">
-                      <option value="">Seleccionar</option>
-                      <option v-for="op in p.opciones" :key="op" :value="op">{{ op }}</option>
-                    </select>
-                  </div>
-                  <div v-else-if="p.tipo === 'seleccion_multiple'" class="checkbox-group">
-                    <label v-for="op in p.opciones" :key="op" class="checkbox-item">
-                      <input type="checkbox" :value="op" v-model="respuestasForm[p.id].valorOpciones" :disabled="!puedeEvaluar" /> {{ op }}
-                    </label>
-                  </div>
-                  <div v-else-if="p.tipo === 'porcentaje'" class="ep-puntaje-input">
-                    <input v-model="respuestasForm[p.id].valorNumerico" type="number" min="0" max="100" :disabled="!puedeEvaluar" /> %
-                  </div>
-                  <div v-else-if="p.tipo === 'kpi'" class="ep-puntaje-input">
-                    <input v-model="respuestasForm[p.id].valorNumerico" type="number" :disabled="!puedeEvaluar" /> <span v-if="p.metaKpi"> / meta: {{ p.metaKpi }}</span>
-                  </div>
-
-                  <textarea v-model="respuestasForm[p.id].comentario" rows="1" placeholder="Comentario (opcional)" :disabled="!puedeEvaluar"></textarea>
+                <div v-if="esTipoEscala(p.tipo)">
+                  <select v-model="respuestasForm[p.id].valorNumerico" :disabled="!puedeEvaluar">
+                    <option value="">Seleccionar</option>
+                    <option v-for="v in escalas.find(e => e.id === p.escalaId)?.valores || []" :key="v.id" :value="v.valor">{{ v.valor }} = {{ v.etiqueta }}</option>
+                  </select>
                 </div>
+                <div v-else-if="p.tipo === 'texto_libre'"><textarea v-model="respuestasForm[p.id].valorTexto" rows="2" :disabled="!puedeEvaluar"></textarea></div>
+                <div v-else-if="p.tipo === 'seleccion_unica'">
+                  <select v-model="respuestasForm[p.id].valorTexto" :disabled="!puedeEvaluar">
+                    <option value="">Seleccionar</option>
+                    <option v-for="op in p.opciones" :key="op" :value="op">{{ op }}</option>
+                  </select>
+                </div>
+                <div v-else-if="p.tipo === 'seleccion_multiple'" class="checkbox-group">
+                  <label v-for="op in p.opciones" :key="op" class="checkbox-item">
+                    <input type="checkbox" :value="op" v-model="respuestasForm[p.id].valorOpciones" :disabled="!puedeEvaluar" /> {{ op }}
+                  </label>
+                </div>
+                <div v-else-if="p.tipo === 'porcentaje'" class="ep-puntaje-input">
+                  <input v-model="respuestasForm[p.id].valorNumerico" type="number" min="0" max="100" :disabled="!puedeEvaluar" /> %
+                </div>
+                <div v-else-if="p.tipo === 'kpi'" class="ep-puntaje-input">
+                  <input v-model="respuestasForm[p.id].valorNumerico" type="number" :disabled="!puedeEvaluar" /> <span v-if="p.metaKpi"> / meta: {{ p.metaKpi }}</span>
+                </div>
+
+                <textarea v-model="respuestasForm[p.id].comentario" rows="1" placeholder="Comentario (opcional)" :disabled="!puedeEvaluar"></textarea>
               </div>
+              <p v-if="!preguntasSeccionActiva.length" class="exp-mini-empty">Sin preguntas en esta sección</p>
             </div>
 
             <div class="form-field"><label>Comentario general</label><textarea v-model="comentarioParticipanteForm" rows="2" :disabled="!puedeEvaluar"></textarea></div>
@@ -478,8 +544,8 @@
 
             <div v-if="evaluarError" class="req" style="font-size:12.5px;">{{ evaluarError }}</div>
             <div class="modal-actions">
-              <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
-              <button v-if="puedeEvaluar" type="button" class="btn-outline" :disabled="guardandoAvance" @click="guardarAvance">{{ guardandoAvance ? 'Guardando...' : 'Guardar avance' }}</button>
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button v-if="puedeEvaluar" type="button" class="btn-outline" :disabled="guardandoAvance" @click="aceptarAvance">{{ guardandoAvance ? 'Guardando...' : 'Aceptar' }}</button>
               <button v-if="puedeEvaluar" type="button" class="btn-primary" :disabled="completando" @click="completarEvaluacion">{{ completando ? 'Completando...' : 'Completar evaluación' }}</button>
             </div>
           </template>
@@ -871,6 +937,34 @@ async function abrirGestionParticipantes(a) {
   modal.open = true
 }
 
+async function abrirEvaluarColaborador(a) {
+  modal.type = 'evaluar-colaborador'
+  modal.data = a
+  asignacionParaParticipantes.value = a
+  const { data } = await listParticipantes(a.id)
+  participantesActuales.value = data || []
+  modal.open = true
+}
+
+const participanteAEliminar = ref(null)
+const eliminandoParticipante = ref(false)
+
+function confirmarEliminarParticipante(p) {
+  modal.type = 'eliminar-participante'
+  participanteAEliminar.value = p
+}
+
+async function eliminarParticipanteConfirmado() {
+  eliminandoParticipante.value = true
+  await eliminarParticipante(participanteAEliminar.value.id)
+  eliminandoParticipante.value = false
+  const { data } = await listParticipantes(asignacionParaParticipantes.value.id)
+  participantesActuales.value = data || []
+  await Promise.all([cargarDetalle(), cargarEvaluaciones()])
+  participanteAEliminar.value = null
+  modal.type = 'evaluar-colaborador'
+}
+
 async function agregarParticipanteForm() {
   participanteError.value = null
   if (!nuevoParticipante.evaluadorProfileId && !nuevoParticipante.nombreEvaluador.trim()) {
@@ -903,8 +997,21 @@ const comentarioParticipanteForm = ref('')
 const evaluarError = ref(null)
 const guardandoAvance = ref(false)
 const completando = ref(false)
+const seccionTabActiva = ref(null)
 
 const puedeEvaluar = computed(() => participanteActual.value && participanteActual.value.estado !== 'completado')
+
+const preguntasSeccionActiva = computed(() => seccionesConPreguntas.value.find((s) => s.id === seccionTabActiva.value)?.preguntas || [])
+
+function preguntasCompletadasEnSeccion(seccion) {
+  return seccion.preguntas.filter((p) => {
+    const r = respuestasForm.value[p.id]
+    if (!r) return false
+    if (esTipoEscala(p.tipo) || p.tipo === 'porcentaje' || p.tipo === 'kpi') return r.valorNumerico !== '' && r.valorNumerico != null
+    if (p.tipo === 'seleccion_multiple') return r.valorOpciones.length > 0
+    return !!(r.valorTexto || r.comentario)
+  }).length
+}
 
 function vaciaRespuesta() { return { valorNumerico: '', valorTexto: '', valorOpciones: [], comentario: '' } }
 
@@ -926,6 +1033,7 @@ async function abrirEvaluar(p) {
       : vaciaRespuesta()
   })
   respuestasForm.value = form
+  seccionTabActiva.value = seccionesConPreguntas.value.find((s) => s.preguntas.length)?.id || null
   modal.open = true
 
   if (p.estado === 'pendiente') {
@@ -951,6 +1059,11 @@ async function guardarAvance() {
   evaluarError.value = null
   await persistirRespuestas()
   guardandoAvance.value = false
+}
+
+async function aceptarAvance() {
+  await guardarAvance()
+  modal.open = false
 }
 
 async function completarEvaluacion() {
@@ -1088,6 +1201,7 @@ async function descargarInforme(a) {
 .dark .ep-progreso { color: #94A3B8; background: #162033; }
 
 .ep-preguntas-form { display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px; }
+.modal-box--evaluar .ep-preguntas-form { max-height: 52vh; }
 .ep-seccion-titulo { font-size: 12.5px; font-weight: 700; color: #133C65; text-transform: uppercase; letter-spacing: 0.4px; margin: 8px 0 2px; }
 .dark .ep-seccion-titulo { color: #93B8D8; }
 .ep-pregunta-item { border: 1px solid #E8EEF4; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
@@ -1166,6 +1280,10 @@ async function descargarInforme(a) {
 .btn-primary--danger:hover:not(:disabled) { background: #A5301F; }
 .btn-outline { font-size: 13.5px; font-weight: 600; color: #133C65; background: none; border: 1.5px solid #D4E4F4; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
 .dark .btn-outline { color: #93B8D8; border-color: #3D5069; }
+.btn-outline--sm { padding: 5px 10px; font-size: 12px; }
+.btn-outline--danger { color: #C0392B; border-color: rgba(192,57,43,0.35); }
+.btn-outline--danger:hover { background: rgba(192,57,43,0.08); }
+.dark .btn-outline--danger { color: #E57368; border-color: rgba(229,115,104,0.4); }
 .btn-outline:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .filter-select { height: 36px; padding: 0 10px; border: 1.5px solid #D4E4F4; border-radius: 8px; font-size: 13px; font-family: inherit; background: white; color: #1A2B3C; cursor: pointer; }
@@ -1213,6 +1331,9 @@ async function descargarInforme(a) {
 .modal-box { background: white; border-radius: 14px; padding: 26px; max-width: 480px; width: 100%; max-height: 88vh; overflow-y: auto; position: relative; }
 .dark .modal-box { background: #1D293D; }
 .modal-box--expediente { max-width: 620px; }
+.modal-box--evaluar { max-width: 820px; max-height: 92vh; }
+
+.ep-seccion-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 14px; }
 .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #7A90A0; cursor: pointer; }
 .modal-title { font-size: 17px; font-weight: 700; color: #133C65; margin-bottom: 4px; }
 .dark .modal-title { color: #E2E8F0; }
