@@ -6,6 +6,11 @@ const _session = ref(null)
 const _loading = ref(true)
 const _initialized = ref(false)
 
+// Si un login/logout manual ya estableció el usuario mientras esta carga
+// inicial seguía en curso (más probable con la latencia de una red móvil),
+// no debe pisarlo con el estado (sin sesión) que existía antes de eso.
+let _manualAuthActionTaken = false
+
 async function initializeAuth() {
   if (_initialized.value) return
   _initialized.value = true
@@ -19,10 +24,18 @@ async function initializeAuth() {
     return
   }
 
-  const { data: { session } } = await supabase.auth.getSession()
-  _session.value = session
-  await aceptarInvitacionPendiente()
-  _user.value = await withProfile(session?.user ?? null)
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    await aceptarInvitacionPendiente()
+    const profileUser = await withProfile(session?.user ?? null)
+    if (!_manualAuthActionTaken) {
+      _session.value = session
+      _user.value = profileUser
+    }
+  } catch {
+    // Sin conexión o falla temporal: se sigue con _user en null; el listener
+    // de abajo actualizará el estado en cuanto haya un evento de auth real.
+  }
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     _session.value = session
@@ -69,6 +82,8 @@ export function useAuth() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error }
 
+    _manualAuthActionTaken = true
+    _session.value = data.session
     _user.value = await withProfile(data.user)
 
     return { error: null, data }
@@ -97,6 +112,7 @@ export function useAuth() {
   }
 
   async function clearUser() {
+    _manualAuthActionTaken = true
     if (isSupabaseConfigured() && supabase) {
       await supabase.auth.signOut()
     }
