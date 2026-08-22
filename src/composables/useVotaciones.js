@@ -129,8 +129,8 @@ export function useVotaciones() {
         .single()
       if (aErr) return { error: aErr }
       const { error: oErr } = await supabase.from('votacion_opciones').insert([
-        { votacion_id: votAgenda.id, texto: 'A Favor', orden: 0 },
-        { votacion_id: votAgenda.id, texto: 'En Contra', orden: 1 },
+        { votacion_id: votAgenda.id, texto: 'A Favor', orden: 0, es_abstencion: false },
+        { votacion_id: votAgenda.id, texto: 'En Contra', orden: 1, es_abstencion: false },
         { votacion_id: votAgenda.id, texto: 'Abstención', orden: 2, es_abstencion: true },
       ])
       if (oErr) return { error: oErr }
@@ -157,6 +157,7 @@ export function useVotaciones() {
         texto: c.asociados?.nombre ?? 'Candidato',
         asociado_id: c.asociado_id,
         orden: i,
+        es_abstencion: false,
       }))
       rows.push({ votacion_id: votPuesto.id, texto: 'Abstención', orden: rows.length, es_abstencion: true })
       const { error: ocErr } = await supabase.from('votacion_opciones').insert(rows)
