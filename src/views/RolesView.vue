@@ -31,7 +31,7 @@
 
     <!-- Modal: editar módulos del rol -->
     <Transition name="fade">
-      <div v-if="editingRole" class="modal-overlay" @click.self="closeEdit">
+      <div v-if="editingRole" class="modal-overlay">
         <div class="modal-card">
           <div class="modal-header">
             <div class="modal-title-group">

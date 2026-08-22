@@ -357,7 +357,7 @@
 
     <!-- ══════════════ MODALES ══════════════ -->
     <Transition name="modal-fade">
-      <div v-if="modal.open" class="modal-backdrop" @click.self="modal.open = false">
+      <div v-if="modal.open" class="modal-backdrop">
         <div class="modal-box" :class="{ 'modal-box--expediente': modal.type === 'resultado' || modal.type === 'gestionar-participantes' || modal.type === 'evaluar-colaborador', 'modal-box--evaluar': modal.type === 'evaluar' }">
           <button class="modal-close" @click="modal.open = false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

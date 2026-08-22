@@ -74,7 +74,7 @@
 
     <!-- ═══ MODAL ═══ -->
     <Transition name="modal-fade">
-      <div v-if="modal.open" class="modal-backdrop" @click.self="closeModal">
+      <div v-if="modal.open" class="modal-backdrop">
         <div class="modal-box modal-box--lg">
 
           <button class="modal-close" @click="closeModal">
