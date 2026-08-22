@@ -1,6 +1,11 @@
 <template>
   <div class="module-page">
 
+    <div v-if="!wizardMode && pageError" class="convoc-estado convoc-pending" style="border-color:#F5C6C0; color:#C0392B;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>{{ pageError }}</span>
+    </div>
+
     <!-- ═══════════════════════════════════════
          VISTA PRINCIPAL (lista)
     ═══════════════════════════════════════ -->
@@ -187,7 +192,7 @@
             </div>
             <div class="form-field">
               <label>Hora inicio <span class="req">*</span></label>
-              <input v-model="wizardData.hora" type="time" />
+              <TimePicker v-model="wizardData.hora" />
             </div>
           </div>
           <div class="form-row">
@@ -542,11 +547,11 @@
           <div class="form-row">
             <div class="form-field">
               <label>Hora de inicio de la asamblea</label>
-              <input v-model="wizardData.horaInicio" type="time" />
+              <TimePicker v-model="wizardData.horaInicio" />
             </div>
             <div class="form-field">
               <label>Hora de cierre</label>
-              <input v-model="wizardData.horaCierre" type="time" />
+              <TimePicker v-model="wizardData.horaCierre" />
             </div>
           </div>
           <div class="form-row">
@@ -775,7 +780,7 @@
 
     <!-- Modal agregar postulante -->
     <Transition name="modal-fade">
-      <div v-if="postModal.open" class="modal-backdrop" @click.self="postModal.open = false">
+      <div v-if="postModal.open" class="modal-backdrop">
         <div class="modal-box">
           <button class="modal-close" @click="postModal.open = false">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -837,11 +842,12 @@ import { useAsociados, initialsOf, colorFor } from '../composables/useAsociados.
 import { useGrabacion } from '../composables/useGrabacion.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
 import DatePicker from '../components/DatePicker.vue'
+import TimePicker from '../components/TimePicker.vue'
 
 const router = useRouter()
 const { currentUser, cooperativaId } = useAuth()
 const {
-  listAsambleas, getAsamblea, createDraft,
+  listAsambleas, getAsamblea, findBorradorSinUsar, createDraft,
   saveStep1, savePuestos, saveConvocatoria, enviarConvocatoria,
   addPostulante, removePostulante, setEstadoPostulacion,
   toggleTerna: toggleTernaApi, saveActa,
@@ -918,6 +924,7 @@ const currentAsambleaId = ref(null)
 const wizardLoading = ref(false)
 const wizardSaving = ref(false)
 const wizardError = ref(null)
+const pageError = ref(null)
 
 const wizardData = reactive({
   nombre: '', tipo: '', modalidad: '', fecha: '', hora: '', lugar: '',
@@ -1356,6 +1363,7 @@ async function startWizard(asamblea = null) {
   draftSaveTimer = null
   pendingDraftFn = null
   wizardError.value = null
+  pageError.value = null
   votacionesResultados.value = []
   currentAsambleaId.value = null
   grabacion.value = null
@@ -1370,12 +1378,18 @@ async function startWizard(asamblea = null) {
   }
 
   wizardLoading.value = true
-  const { data, error: err } = asamblea
-    ? await getAsamblea(asamblea.id)
-    : await createDraft(cooperativaId.value)
+  let data, err
+  if (asamblea) {
+    ({ data, error: err } = await getAsamblea(asamblea.id))
+  } else {
+    const { data: existente, error: findErr } = await findBorradorSinUsar(cooperativaId.value)
+    if (findErr) { data = null; err = findErr }
+    else if (existente) { data = existente; err = null }
+    else ({ data, error: err } = await createDraft(cooperativaId.value))
+  }
   wizardLoading.value = false
 
-  if (err || !data) { wizardError.value = err?.message || 'No se pudo abrir la asamblea'; return }
+  if (err || !data) { pageError.value = err?.message || 'No se pudo abrir la asamblea'; return }
 
   currentAsambleaId.value = data.id
   applyAsambleaData(data)
@@ -1531,7 +1545,8 @@ const proxima = computed(() => {
 async function loadAsambleasList() {
   if (!isSupabaseConfigured()) return
   const { data, error: err } = await listAsambleas()
-  if (!err && data) asambleas.value = data
+  if (err) { pageError.value = err.message || 'No se pudo cargar el historial de asambleas'; return }
+  if (data) { asambleas.value = data; pageError.value = null }
 }
 
 onMounted(loadAsambleasList)

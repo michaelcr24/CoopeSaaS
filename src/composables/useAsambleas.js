@@ -79,6 +79,22 @@ export function useAsambleas() {
       .single()
   }
 
+  // Borrador en blanco existente (creado por "Programar asamblea" pero
+  // abandonado antes de llenar el paso 1): se reutiliza en vez de insertar
+  // otra fila huerfana cada vez que se hace click en el boton.
+  async function findBorradorSinUsar(cooperativaId) {
+    return supabase
+      .from('asambleas')
+      .select('*, asamblea_puestos(*), asamblea_postulaciones(*, asociados(id, nombre, cedula, foto_url)), asamblea_invitados(*, asociados(id, nombre, cedula))')
+      .eq('cooperativa_id', cooperativaId)
+      .eq('nombre', 'Nueva asamblea')
+      .eq('paso_wizard', 1)
+      .is('lugar', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  }
+
   async function createDraft(cooperativaId) {
     return supabase
       .from('asambleas')
@@ -244,6 +260,7 @@ export function useAsambleas() {
     error,
     listAsambleas,
     getAsamblea,
+    findBorradorSinUsar,
     createDraft,
     saveStep1,
     savePuestos,
