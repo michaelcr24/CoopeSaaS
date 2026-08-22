@@ -1,6 +1,11 @@
 <template>
   <div class="module-page">
 
+    <div v-if="pageError" class="convoc-estado convoc-pending" style="border-color:#F5C6C0; color:#C0392B;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>{{ pageError }}</span>
+    </div>
+
     <!-- ═══ VISTA: LISTA DE ÓRGANOS ═══ -->
     <template v-if="!selectedOrgan">
       <div class="page-header">
@@ -14,7 +19,9 @@
         </button>
       </div>
 
-      <div class="organs-grid">
+      <div v-if="orgLoading" class="empty-state">Cargando…</div>
+
+      <div v-else class="organs-grid">
         <div v-for="org in organs" :key="org.id" class="organ-card">
           <div class="organ-header">
             <div class="organ-icon">
@@ -22,13 +29,13 @@
             </div>
             <div>
               <h3 class="organ-name">{{ org.name }}</h3>
-              <span class="organ-period">Período {{ org.period }}</span>
+              <span class="organ-period">{{ org.period ? `Período ${org.period}` : 'Sin período definido' }}</span>
             </div>
           </div>
 
           <div class="organ-members">
             <div class="members-label">Integrantes ({{ org.members.length }})</div>
-            <div v-for="m in org.members.slice(0, 3)" :key="m.role" class="member-row">
+            <div v-for="m in org.members.slice(0, 3)" :key="m.id" class="member-row">
               <div class="member-avatar" :style="{ background: m.asociado?.color ?? '#C5D5E5' }">
                 {{ m.asociado?.initials ?? '?' }}
               </div>
@@ -37,6 +44,7 @@
                 <span class="member-role">{{ m.role }}</span>
               </div>
             </div>
+            <div v-if="!org.members.length" class="members-more">Sin integrantes registrados</div>
             <div v-if="org.members.length > 3" class="members-more">
               +{{ org.members.length - 3 }} más
             </div>
@@ -48,6 +56,10 @@
               Ver detalle
             </button>
           </div>
+        </div>
+
+        <div v-if="!organs.length" class="empty-state">
+          Sin órganos registrados todavía. Crea el primero con "Nuevo órgano".
         </div>
       </div>
     </template>
@@ -65,74 +77,149 @@
           </div>
           <div>
             <h2 class="detail-page-title">{{ selectedOrgan.name }}</h2>
-            <p class="detail-page-subtitle">Período {{ selectedOrgan.period }} · {{ selectedOrgan.members.length }} integrantes</p>
+            <p class="detail-page-subtitle">{{ selectedOrgan.period ? `Período ${selectedOrgan.period} · ` : '' }}{{ selectedOrgan.members.length }} integrantes</p>
           </div>
         </div>
       </div>
 
-      <!-- Dos columnas: Actas | Integrantes -->
-      <div class="detail-two-col">
+      <TabNav v-model="detailTab" :tabs="tabsList" />
 
-        <!-- ── Columna 1: Gestión de actas ── -->
-        <div class="detail-section">
+      <div v-if="detailLoading" class="empty-state">Cargando…</div>
+
+      <template v-else>
+        <!-- ── Sesiones y actas ── -->
+        <div v-if="detailTab === 'sesiones'" class="detail-section detail-section--full">
           <div class="section-head">
-            <h3 class="section-title">Gestión de actas</h3>
-            <button class="btn-primary btn-sm" @click="openNewActa">
+            <h3 class="section-title">Sesiones y actas</h3>
+            <button class="btn-primary btn-sm" @click="openSesionModal()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Nueva acta
+              Nueva sesión
             </button>
           </div>
           <div class="table-wrap">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>N°</th>
+                  <th>Tema</th>
                   <th>Tipo</th>
                   <th>Fecha</th>
                   <th>Estado</th>
+                  <th>Acta</th>
                   <th class="th-actions">Acc.</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="acta in selectedOrgan.actas" :key="acta.id">
-                  <td class="cell-bold">{{ acta.numero }}</td>
-                  <td>{{ acta.tipo }}</td>
-                  <td>{{ acta.fecha }}</td>
-                  <td><span class="badge" :class="'badge--' + acta.estadoClass">{{ acta.estado }}</span></td>
+                <tr v-for="sesion in sesiones" :key="sesion.id">
+                  <td class="cell-bold">{{ sesion.tema }}</td>
+                  <td>{{ capitalize(sesion.tipo) }}</td>
+                  <td>{{ sesion.fecha }}</td>
+                  <td><span class="badge" :class="'badge--' + sesion.estadoClass">{{ sesion.estado }}</span></td>
+                  <td>
+                    <button v-if="sesion.hasActa" class="acta-link" @click="verActa(sesion)">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      Ver acta
+                    </button>
+                    <span v-else class="text-muted-sm">Sin adjuntar</span>
+                  </td>
                   <td style="white-space:nowrap">
-                    <button class="action-btn" title="Editar" @click="editActa(acta)">
+                    <button class="action-btn" title="Editar" @click="openSesionModal(sesion)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
-                    <button class="action-btn action-btn--danger" title="Eliminar" @click="deleteActa(acta)">
+                    <button class="action-btn action-btn--danger" title="Eliminar" @click="eliminarSesionRow(sesion)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     </button>
                   </td>
                 </tr>
-                <tr v-if="!selectedOrgan.actas.length">
-                  <td :colspan="5" class="empty-row">Sin actas registradas</td>
+                <tr v-if="!sesiones.length">
+                  <td :colspan="6" class="empty-row">Sin sesiones registradas</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        <!-- ── Columna 2: Gestión de integrantes ── -->
-        <div class="detail-section">
+        <!-- ── Seguimiento de acuerdos ── -->
+        <div v-if="detailTab === 'acuerdos'" class="detail-section detail-section--full">
+          <div class="section-head">
+            <h3 class="section-title">Seguimiento de acuerdos</h3>
+            <button class="btn-primary btn-sm" :disabled="!sesiones.length" @click="openAcuerdoModal()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nuevo acuerdo
+            </button>
+          </div>
+          <p v-if="!sesiones.length" class="hint-text">Registra al menos una sesión antes de agregar acuerdos.</p>
+
+          <div class="kpi-row">
+            <KpiCard :value="kpiTotal" label="Acuerdos totales" variant="navy" />
+            <KpiCard :value="kpiPendientes" label="Pendientes" variant="yellow" />
+            <KpiCard :value="kpiEnProceso" label="En proceso" variant="gold" />
+            <KpiCard :value="kpiVencidos" label="Vencidos" variant="red" />
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Acuerdo</th>
+                  <th>Sesión</th>
+                  <th>Responsable</th>
+                  <th>Fecha límite</th>
+                  <th>Estado</th>
+                  <th>Progreso</th>
+                  <th class="th-actions">Acc.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="acuerdo in acuerdos" :key="acuerdo.id">
+                  <td class="cell-bold">{{ acuerdo.texto }}</td>
+                  <td>
+                    <span class="td-sesion">{{ acuerdo.sesionTema }}</span>
+                    <span class="td-sub">{{ acuerdo.sesionFecha }}</span>
+                  </td>
+                  <td>{{ acuerdo.responsableNombre }}</td>
+                  <td :class="acuerdo.vencido ? 'txt-red fw-600' : ''">{{ acuerdo.fechaLimite }}</td>
+                  <td><span class="badge" :class="'badge--' + acuerdo.estadoClass">{{ acuerdo.estado }}</span></td>
+                  <td>
+                    <div class="prog-wrap">
+                      <div class="prog-bg">
+                        <div class="prog-fill" :class="acuerdo.vencido ? 'prog--red' : acuerdo.estadoRaw === 'completado' ? 'prog--green' : 'prog--blue'" :style="{ width: acuerdo.progreso + '%' }"></div>
+                      </div>
+                      <span class="prog-pct">{{ acuerdo.progreso }}%</span>
+                    </div>
+                  </td>
+                  <td style="white-space:nowrap">
+                    <button class="action-btn" title="Editar" @click="openAcuerdoModal(acuerdo)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button class="action-btn action-btn--danger" title="Eliminar" @click="eliminarAcuerdoRow(acuerdo)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!acuerdos.length">
+                  <td :colspan="7" class="empty-row">Sin acuerdos registrados</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── Integrantes ── -->
+        <div v-if="detailTab === 'integrantes'" class="detail-section detail-section--full">
           <div class="section-head">
             <h3 class="section-title">Gestión de integrantes</h3>
-            <button class="btn-primary btn-sm" @click="startEdit">
+            <button v-if="!editMode" class="btn-primary btn-sm" @click="startEdit">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Editar
             </button>
           </div>
 
-          <!-- Modo lectura -->
           <template v-if="!editMode">
             <div class="table-wrap">
               <table class="data-table">
                 <thead><tr><th>Puesto</th><th>Asociado</th><th>Desde</th></tr></thead>
                 <tbody>
-                  <tr v-for="m in selectedOrgan.members" :key="m.role">
+                  <tr v-for="m in selectedOrgan.members" :key="m.id">
                     <td class="cell-bold role-cell">{{ m.role }}</td>
                     <td>
                       <div class="detail-person">
@@ -144,16 +231,23 @@
                     </td>
                     <td class="detail-since">{{ m.desde ?? '—' }}</td>
                   </tr>
+                  <tr v-if="!selectedOrgan.members.length">
+                    <td :colspan="3" class="empty-row">Sin integrantes registrados</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </template>
 
-          <!-- Modo edición -->
           <template v-else>
             <div class="edit-slots">
-              <div v-for="slot in editSlots" :key="slot.role" class="edit-slot">
-                <label class="slot-role">{{ slot.role }}</label>
+              <div v-for="slot in editSlots.filter(s => !s._delete)" :key="slot.dbId ?? slot" class="edit-slot">
+                <div class="edit-slot-head">
+                  <input v-model="slot.role" type="text" class="slot-role-input" placeholder="Puesto (ej. Presidente/a)" />
+                  <button class="ac-clear" title="Quitar puesto" @click="removeSlot(slot)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
                 <div class="autocomplete-wrap">
                   <div class="autocomplete-input-wrap">
                     <svg class="ac-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -161,7 +255,7 @@
                       v-model="slot.query"
                       type="text"
                       class="autocomplete-input"
-                      :placeholder="`Buscar para ${slot.role}...`"
+                      placeholder="Buscar asociado..."
                       @input="onSlotInput(slot)"
                       @focus="onSlotInput(slot)"
                       @blur="onSlotBlur(slot)"
@@ -169,7 +263,7 @@
                     <div v-if="slot.asociado" class="ac-selected-avatar" :style="{ background: slot.asociado.color }">
                       {{ slot.asociado.initials }}
                     </div>
-                    <button v-if="slot.asociado" class="ac-clear" @mousedown.prevent="clearSlot(slot)" title="Quitar">
+                    <button v-if="slot.asociado" class="ac-clear ac-clear--inset" @mousedown.prevent="clearSlot(slot)" title="Quitar asociado">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
@@ -186,197 +280,438 @@
                           <span class="ac-item-name">{{ a.name }}</span>
                           <span class="ac-item-cedula">{{ a.cedula }}</span>
                         </div>
-                        <span v-if="a.cargo" class="ac-item-cargo">{{ a.cargo }}</span>
                       </div>
                     </div>
                   </Transition>
                 </div>
               </div>
+              <button class="btn-outline btn-sm" @click="addSlot">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agregar puesto
+              </button>
             </div>
             <div class="edit-actions">
               <button class="btn-outline btn-sm" @click="cancelEdit">Cancelar</button>
-              <button class="btn-primary btn-sm" @click="saveEdit">Guardar cambios</button>
+              <button class="btn-primary btn-sm" :disabled="miembrosSaving" @click="saveEdit">Guardar cambios</button>
             </div>
           </template>
         </div>
-
-      </div>
+      </template>
     </template>
+
+    <!-- Modal: nuevo órgano -->
+    <div v-if="organoModal.open" class="modal-backdrop">
+      <div class="modal-box">
+        <button class="modal-close" @click="organoModal.open = false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <h3 class="modal-title">Nuevo órgano</h3>
+        <div class="modal-form">
+          <div class="form-field">
+            <label>Nombre <span class="req">*</span></label>
+            <input v-model="organoModal.nombre" type="text" placeholder="Ej: Comité de Crédito" />
+          </div>
+          <div class="form-field">
+            <label>Período</label>
+            <input v-model="organoModal.periodo" type="text" placeholder="Ej: 2024-2026" />
+          </div>
+          <div class="form-field">
+            <label>Descripción</label>
+            <textarea v-model="organoModal.descripcion" rows="3" placeholder="Función y alcance del órgano..."></textarea>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-outline" @click="organoModal.open = false">Cancelar</button>
+            <button class="btn-primary" :disabled="organoModal.saving || !organoModal.nombre.trim()" @click="guardarOrgano">Crear órgano</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: nueva/editar sesión -->
+    <div v-if="sesionModal.open" class="modal-backdrop">
+      <div class="modal-box">
+        <button class="modal-close" @click="sesionModal.open = false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <h3 class="modal-title">{{ sesionModal.id ? 'Editar sesión' : 'Nueva sesión' }}</h3>
+        <div class="modal-form">
+          <div class="form-field">
+            <label>Tema <span class="req">*</span></label>
+            <textarea v-model="sesionModal.tema" rows="2" placeholder="Ej: Revisión de estados financieros"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Tipo</label>
+              <select v-model="sesionModal.tipo">
+                <option value="ordinaria">Ordinaria</option>
+                <option value="extraordinaria">Extraordinaria</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Estado</label>
+              <select v-model="sesionModal.estado">
+                <option value="programada">Programada</option>
+                <option value="realizada">Realizada</option>
+                <option value="cancelada">Cancelada</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Fecha <span class="req">*</span></label>
+              <DatePicker v-model="sesionModal.fecha" />
+            </div>
+            <div class="form-field">
+              <label>Hora</label>
+              <TimePicker v-model="sesionModal.hora" />
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Lugar</label>
+            <input v-model="sesionModal.lugar" type="text" placeholder="Ej: Sala de sesiones" />
+          </div>
+
+          <div v-if="sesionModal.id" class="acta-attach">
+            <label>Acta (PDF)</label>
+            <div v-if="sesionModal.actaPath" class="acta-attach-row">
+              <button class="acta-link" @click="verActaModal">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Ver acta actual
+              </button>
+              <label class="file-link">Reemplazar<input type="file" accept="application/pdf" hidden @change="onActaFileChange" /></label>
+              <button class="acta-remove" @click="quitarActaModal">Quitar</button>
+            </div>
+            <div v-else class="file-drop">
+              <p>Arrastra el acta aquí o <label class="file-link">selecciona el archivo<input type="file" accept="application/pdf" hidden @change="onActaFileChange" /></label></p>
+              <small>Solo PDF</small>
+            </div>
+          </div>
+          <p v-else class="hint-text">Guarda la sesión primero para poder adjuntar el acta.</p>
+
+          <div class="modal-actions">
+            <button class="btn-outline" @click="sesionModal.open = false">Cancelar</button>
+            <button class="btn-primary" :disabled="sesionModal.saving || !sesionModal.tema.trim() || !sesionModal.fecha" @click="guardarSesion">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: nuevo/editar acuerdo -->
+    <div v-if="acuerdoModal.open" class="modal-backdrop">
+      <div class="modal-box">
+        <button class="modal-close" @click="acuerdoModal.open = false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <h3 class="modal-title">{{ acuerdoModal.id ? 'Editar acuerdo' : 'Nuevo acuerdo' }}</h3>
+        <div class="modal-form">
+          <div class="form-field">
+            <label>Acuerdo <span class="req">*</span></label>
+            <textarea v-model="acuerdoModal.texto" rows="3" placeholder="Descripción del acuerdo tomado..."></textarea>
+          </div>
+          <div class="form-field">
+            <label>Sesión <span class="req">*</span></label>
+            <select v-model="acuerdoModal.sesionId">
+              <option value="" disabled>Seleccionar</option>
+              <option v-for="s in sesiones" :key="s.id" :value="s.id">{{ s.tema }} · {{ s.fecha }}</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label>Responsable</label>
+              <select v-model="acuerdoModal.responsableId">
+                <option value="">Sin asignar</option>
+                <option v-for="r in responsables" :key="r.id" :value="r.id">{{ r.name }} ({{ r.role }})</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Fecha límite</label>
+              <DatePicker v-model="acuerdoModal.fechaLimite" />
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Estado</label>
+            <select v-model="acuerdoModal.estado">
+              <option value="pendiente">Pendiente</option>
+              <option value="en_proceso">En proceso</option>
+              <option value="completado">Completado</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-outline" @click="acuerdoModal.open = false">Cancelar</button>
+            <button class="btn-primary" :disabled="acuerdoModal.saving || !acuerdoModal.texto.trim() || !acuerdoModal.sesionId" @click="guardarAcuerdo">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useAuth } from '../composables/useAuth.js'
+import { useAsociados, initialsOf, colorFor } from '../composables/useAsociados.js'
+import { useOrganos } from '../composables/useOrganos.js'
+import TabNav from '../components/TabNav.vue'
+import KpiCard from '../components/KpiCard.vue'
+import DatePicker from '../components/DatePicker.vue'
+import TimePicker from '../components/TimePicker.vue'
 
-/* ── Asociados disponibles (mock) ───────── */
-const asociados = [
-  { id: 1,  name: 'Juan Pérez Mora',      initials: 'JP',  color: '#133C65', cedula: '1-0234-0567', cargo: 'Asociado' },
-  { id: 2,  name: 'Laura Soto Jiménez',   initials: 'LS',  color: '#1A9152', cedula: '2-0456-0789', cargo: 'Asociada' },
-  { id: 3,  name: 'Roberto Ureña',        initials: 'RU',  color: '#C47F0C', cedula: '3-0123-0456', cargo: 'Asociado' },
-  { id: 4,  name: 'Carmen Fallas',        initials: 'CF',  color: '#7B3FA0', cedula: '1-0678-0901', cargo: 'Asociada' },
-  { id: 5,  name: 'Ernesto Vega',         initials: 'EV',  color: '#00808C', cedula: '4-0234-0567', cargo: 'Asociado' },
-  { id: 6,  name: 'María Rodríguez',      initials: 'MR',  color: '#133C65', cedula: '1-0501-0234', cargo: 'Asociada' },
-  { id: 7,  name: 'Carlos Solano',        initials: 'CS',  color: '#1A9152', cedula: '2-0301-0888', cargo: 'Asociado' },
-  { id: 8,  name: 'Ana Vargas',           initials: 'AV',  color: '#7B3FA0', cedula: '4-0102-0345', cargo: 'Asociada' },
-  { id: 9,  name: 'Luis Jiménez',         initials: 'LJ',  color: '#C47F0C', cedula: '1-0721-0912', cargo: 'Asociado' },
-  { id: 10, name: 'Patricia Mora',        initials: 'PM',  color: '#C0392B', cedula: '3-0561-0234', cargo: 'Asociada' },
-  { id: 11, name: 'Fernando Castro',      initials: 'FC',  color: '#1565C0', cedula: '1-0845-0312', cargo: 'Asociado' },
-  { id: 12, name: 'Gloria Herrera',       initials: 'GH',  color: '#00808C', cedula: '2-0613-0789', cargo: 'Asociada' },
-  { id: 13, name: 'Marcos Salas',         initials: 'MS',  color: '#7B3FA0', cedula: '4-0312-0655', cargo: 'Asociado' },
-  { id: 14, name: 'Ingrid Quesada',       initials: 'IQ',  color: '#C0392B', cedula: '1-0933-0412', cargo: 'Asociada' },
-  { id: 15, name: 'Rodrigo Blanco',       initials: 'RB',  color: '#133C65', cedula: '3-0777-0128', cargo: 'Asociado' },
-]
+const { cooperativaId } = useAuth()
+const { search: searchAsociados } = useAsociados()
+const {
+  listOrganos, getOrgano, createOrgano, saveMiembros,
+  listSesiones, createSesion, updateSesion, deleteSesion,
+  subirActa, reemplazarActa, eliminarActa, getUrlActa,
+  listAcuerdosByOrgano, createAcuerdo, updateAcuerdo, deleteAcuerdo,
+  listResponsablesDisponibles,
+} = useOrganos()
 
-/* ── Órganos ────────────────────────────── */
-const organs = ref([
-  {
-    id: 1,
-    name: 'Consejo de Administración',
-    period: '2024-2026',
-    members: [
-      { role: 'Presidente/a',     asociado: asociados[5],  desde: '15/04/2024' },
-      { role: 'Vicepresidente/a', asociado: asociados[6],  desde: '15/04/2024' },
-      { role: 'Secretario/a',     asociado: asociados[7],  desde: '15/04/2024' },
-      { role: 'Tesorero/a',       asociado: asociados[0],  desde: '15/04/2024' },
-      { role: 'Fiscal',           asociado: asociados[10], desde: '15/04/2024' },
-      { role: 'Vocal I',          asociado: asociados[1],  desde: '15/04/2024' },
-      { role: 'Vocal II',         asociado: asociados[11], desde: '15/04/2024' },
-    ],
-    actas: [
-      { id: 1, numero: 'ACTA-001-2026', tipo: 'Ordinaria',      fecha: '10/01/2026', estado: 'Aprobada',  estadoClass: 'green'  },
-      { id: 2, numero: 'ACTA-002-2026', tipo: 'Extraordinaria', fecha: '15/03/2026', estado: 'Aprobada',  estadoClass: 'green'  },
-      { id: 3, numero: 'ACTA-003-2026', tipo: 'Ordinaria',      fecha: '05/05/2026', estado: 'Pendiente', estadoClass: 'yellow' },
-    ],
-  },
-  {
-    id: 2,
-    name: 'Junta de Vigilancia',
-    period: '2024-2026',
-    members: [
-      { role: 'Presidente/a', asociado: asociados[8],  desde: '15/04/2024' },
-      { role: 'Secretario/a', asociado: asociados[9],  desde: '15/04/2024' },
-      { role: 'Vocal',        asociado: asociados[12], desde: '15/04/2024' },
-    ],
-    actas: [
-      { id: 1, numero: 'ACTA-JV-001-2025', tipo: 'Ordinaria', fecha: '20/02/2025', estado: 'Aprobada', estadoClass: 'green' },
-      { id: 2, numero: 'ACTA-JV-002-2025', tipo: 'Ordinaria', fecha: '18/06/2025', estado: 'Aprobada', estadoClass: 'green' },
-    ],
-  },
-  {
-    id: 3,
-    name: 'Comité de Educación',
-    period: '2024-2025',
-    members: [
-      { role: 'Coordinador/a', asociado: asociados[4],  desde: '10/06/2024' },
-      { role: 'Secretario/a',  asociado: asociados[3],  desde: '10/06/2024' },
-      { role: 'Vocal I',       asociado: asociados[13], desde: '10/06/2024' },
-      { role: 'Vocal II',      asociado: asociados[14], desde: '10/06/2024' },
-    ],
-    actas: [
-      { id: 1, numero: 'ACTA-CE-001-2024', tipo: 'Ordinaria', fecha: '15/07/2024', estado: 'Aprobada', estadoClass: 'green' },
-    ],
-  },
-  {
-    id: 4,
-    name: 'Tribunal Electoral',
-    period: '2025-2027',
-    members: [
-      { role: 'Presidente/a', asociado: asociados[2],  desde: '20/05/2025' },
-      { role: 'Secretario/a', asociado: asociados[5],  desde: '20/05/2025' },
-      { role: 'Vocal',        asociado: asociados[13], desde: '20/05/2025' },
-    ],
-    actas: [
-      { id: 1, numero: 'ACTA-TE-001-2025', tipo: 'Constitutiva', fecha: '20/05/2025', estado: 'Aprobada',  estadoClass: 'green'  },
-      { id: 2, numero: 'ACTA-TE-002-2026', tipo: 'Ordinaria',    fecha: '12/02/2026', estado: 'Pendiente', estadoClass: 'yellow' },
-    ],
-  },
-])
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '' }
+
+const pageError = ref(null)
+
+/* ── Lista de órganos ───────────────────── */
+const orgLoading = ref(false)
+const organs = ref([])
+
+async function loadOrganos() {
+  orgLoading.value = true
+  const { data, error: err } = await listOrganos(cooperativaId.value)
+  orgLoading.value = false
+  if (err) { pageError.value = err.message; return }
+  organs.value = data || []
+}
+onMounted(loadOrganos)
+
+const organoModal = reactive({ open: false, saving: false, nombre: '', periodo: '', descripcion: '' })
+function openNewOrgan() {
+  organoModal.nombre = ''
+  organoModal.periodo = ''
+  organoModal.descripcion = ''
+  organoModal.open = true
+}
+async function guardarOrgano() {
+  if (!organoModal.nombre.trim()) return
+  organoModal.saving = true
+  const { data, error: err } = await createOrgano(cooperativaId.value, {
+    nombre: organoModal.nombre.trim(), periodo: organoModal.periodo.trim(), descripcion: organoModal.descripcion.trim(),
+  })
+  organoModal.saving = false
+  if (err) { pageError.value = err.message; return }
+  organs.value.push(data)
+  organoModal.open = false
+  await openDetail(data)
+}
 
 /* ── Detalle inline ─────────────────────── */
 const selectedOrgan = ref(null)
+const detailTab = ref('sesiones')
+const detailLoading = ref(false)
+const sesiones = ref([])
+const acuerdos = ref([])
+const responsables = ref([])
 
-function openDetail(org) {
+const tabsList = computed(() => [
+  { key: 'sesiones', label: 'Sesiones y actas', count: sesiones.value.length },
+  { key: 'acuerdos', label: 'Seguimiento de acuerdos', count: acuerdos.value.length },
+  { key: 'integrantes', label: 'Integrantes', count: selectedOrgan.value?.members.length ?? 0 },
+])
+
+async function openDetail(org) {
   selectedOrgan.value = org
+  detailTab.value = 'sesiones'
   editMode.value = false
+  pageError.value = null
+  detailLoading.value = true
+  const [sesRes, acRes, respRes] = await Promise.all([
+    listSesiones(org.id),
+    listAcuerdosByOrgano(org.id),
+    listResponsablesDisponibles(cooperativaId.value),
+  ])
+  detailLoading.value = false
+  sesiones.value = sesRes.data || []
+  acuerdos.value = acRes.data || []
+  responsables.value = respRes.data || []
 }
 
 function closeDetail() {
   selectedOrgan.value = null
   editMode.value = false
+  sesiones.value = []
+  acuerdos.value = []
+  responsables.value = []
 }
-
-function openNewOrgan() {}
 
 /* ── Edición de integrantes ─────────────── */
 const editMode = ref(false)
 const editSlots = ref([])
+const miembrosSaving = ref(false)
 
 function startEdit() {
   editSlots.value = selectedOrgan.value.members.map(m => ({
-    role: m.role,
-    asociado: m.asociado ? { ...m.asociado } : null,
-    query: m.asociado?.name ?? '',
-    open: false,
-    suggestions: [],
+    dbId: m.id, role: m.role, asociado: m.asociado ? { ...m.asociado } : null,
+    query: m.asociado?.name ?? '', open: false, suggestions: [], _delete: false,
   }))
   editMode.value = true
 }
 
 function cancelEdit() { editMode.value = false }
 
-function saveEdit() {
-  selectedOrgan.value.members = editSlots.value.map((slot, i) => ({
-    role: slot.role,
-    asociado: slot.asociado,
-    desde: selectedOrgan.value.members[i]?.desde,
-  }))
+function addSlot() {
+  editSlots.value.push({ dbId: null, role: '', asociado: null, query: '', open: false, suggestions: [], _delete: false })
+}
+
+function removeSlot(slot) {
+  if (slot.dbId) { slot._delete = true; slot.open = false }
+  else editSlots.value.splice(editSlots.value.indexOf(slot), 1)
+}
+
+async function saveEdit() {
+  miembrosSaving.value = true
+  const { error: err } = await saveMiembros(selectedOrgan.value.id, editSlots.value)
+  miembrosSaving.value = false
+  if (err) { pageError.value = err.message; return }
+  const { data, error: getErr } = await getOrgano(selectedOrgan.value.id)
+  if (getErr) { pageError.value = getErr.message; return }
+  selectedOrgan.value = data
+  const idx = organs.value.findIndex(o => o.id === data.id)
+  if (idx !== -1) organs.value[idx] = data
   editMode.value = false
 }
 
-/* ── Autocomplete ───────────────────────── */
-function onSlotInput(slot) {
-  const q = slot.query.trim().toLowerCase()
-  slot.suggestions = q
-    ? asociados.filter(a => a.name.toLowerCase().includes(q) || a.cedula.includes(q))
-    : asociados.slice(0, 8)
+/* ── Autocomplete de asociados ──────────── */
+async function onSlotInput(slot) {
+  const { data } = await searchAsociados(slot.query)
+  slot.suggestions = (data || []).map(a => ({ id: a.id, name: a.nombre, cedula: a.cedula, initials: initialsOf(a.nombre), color: colorFor(a.id) }))
   slot.open = true
 }
-
 function onSlotBlur(slot) { setTimeout(() => { slot.open = false }, 160) }
+function selectSuggestion(slot, a) { slot.asociado = { ...a }; slot.query = a.name; slot.open = false }
+function clearSlot(slot) { slot.asociado = null; slot.query = ''; slot.open = false }
 
-function selectSuggestion(slot, a) {
-  slot.asociado = { ...a }
-  slot.query = a.name
-  slot.open = false
+/* ── Sesiones y actas ────────────────────── */
+const sesionModal = reactive({ open: false, saving: false, id: null, tema: '', tipo: 'ordinaria', fecha: '', hora: '', lugar: '', estado: 'programada', actaPath: null })
+
+function openSesionModal(sesion = null) {
+  if (sesion) {
+    Object.assign(sesionModal, {
+      id: sesion.id, tema: sesion.tema, tipo: sesion.tipo, fecha: sesion.fechaISO,
+      hora: sesion.hora, lugar: sesion.lugar, estado: sesion.estadoRaw, actaPath: sesion.actaPath,
+    })
+  } else {
+    Object.assign(sesionModal, { id: null, tema: '', tipo: 'ordinaria', fecha: '', hora: '', lugar: '', estado: 'programada', actaPath: null })
+  }
+  sesionModal.open = true
 }
 
-function clearSlot(slot) {
-  slot.asociado = null
-  slot.query = ''
-  slot.open = false
+async function guardarSesion() {
+  if (!sesionModal.tema.trim() || !sesionModal.fecha) return
+  sesionModal.saving = true
+  const payload = { tema: sesionModal.tema.trim(), tipo: sesionModal.tipo, fecha: sesionModal.fecha, hora: sesionModal.hora, lugar: sesionModal.lugar, estado: sesionModal.estado }
+  const { data, error: err } = sesionModal.id
+    ? await updateSesion(sesionModal.id, payload)
+    : await createSesion(selectedOrgan.value.id, payload)
+  sesionModal.saving = false
+  if (err) { pageError.value = err.message; return }
+
+  if (sesionModal.id) {
+    const idx = sesiones.value.findIndex(s => s.id === data.id)
+    if (idx !== -1) sesiones.value[idx] = data
+  } else {
+    sesiones.value.unshift(data)
+  }
+  sesionModal.id = data.id
+  sesionModal.actaPath = data.actaPath
 }
 
-/* ── Actas ──────────────────────────────── */
-let nextActaId = 20
-
-function openNewActa() {
-  if (!selectedOrgan.value) return
-  selectedOrgan.value.actas.push({
-    id: nextActaId++,
-    numero: `ACTA-${String(selectedOrgan.value.id).padStart(2,'0')}-${nextActaId.toString().padStart(3,'0')}`,
-    tipo: 'Ordinaria',
-    fecha: '16/06/2026',
-    estado: 'Pendiente',
-    estadoClass: 'yellow',
-  })
+function actualizarSesionEnLista(data) {
+  const idx = sesiones.value.findIndex(s => s.id === data.id)
+  if (idx !== -1) sesiones.value[idx] = data
 }
 
-function editActa(_acta) {}
+async function onActaFileChange(e) {
+  const file = e.target.files[0]
+  e.target.value = ''
+  if (!file || !sesionModal.id) return
+  sesionModal.saving = true
+  const { data, error: err } = sesionModal.actaPath
+    ? await reemplazarActa(cooperativaId.value, selectedOrgan.value.id, sesionModal.id, file, sesionModal.actaPath)
+    : await subirActa(cooperativaId.value, selectedOrgan.value.id, sesionModal.id, file)
+  sesionModal.saving = false
+  if (err) { pageError.value = err.message; return }
+  sesionModal.actaPath = data.actaPath
+  actualizarSesionEnLista(data)
+}
 
-function deleteActa(acta) {
-  if (!selectedOrgan.value) return
-  selectedOrgan.value.actas = selectedOrgan.value.actas.filter(a => a.id !== acta.id)
+async function quitarActaModal() {
+  if (!sesionModal.id || !sesionModal.actaPath) return
+  const { data, error: err } = await eliminarActa(sesionModal.id, sesionModal.actaPath)
+  if (err) { pageError.value = err.message; return }
+  sesionModal.actaPath = null
+  actualizarSesionEnLista(data)
+}
+
+async function abrirUrlActa(path) {
+  const { url, error: err } = await getUrlActa(path)
+  if (err || !url) { pageError.value = err?.message || 'No se pudo abrir el acta'; return }
+  window.open(url, '_blank')
+}
+function verActa(sesion) { abrirUrlActa(sesion.actaPath) }
+function verActaModal() { abrirUrlActa(sesionModal.actaPath) }
+
+async function eliminarSesionRow(sesion) {
+  if (!confirm(`¿Eliminar la sesión "${sesion.tema}"? También se eliminarán sus acuerdos.`)) return
+  const { error: err } = await deleteSesion(sesion.id, sesion.actaPath)
+  if (err) { pageError.value = err.message; return }
+  sesiones.value = sesiones.value.filter(s => s.id !== sesion.id)
+  acuerdos.value = acuerdos.value.filter(a => a.sesionId !== sesion.id)
+}
+
+/* ── Seguimiento de acuerdos ─────────────── */
+const kpiTotal = computed(() => acuerdos.value.length)
+const kpiPendientes = computed(() => acuerdos.value.filter(a => a.estadoRaw === 'pendiente' && !a.vencido).length)
+const kpiEnProceso = computed(() => acuerdos.value.filter(a => a.estadoRaw === 'en_proceso' && !a.vencido).length)
+const kpiVencidos = computed(() => acuerdos.value.filter(a => a.vencido).length)
+
+const acuerdoModal = reactive({ open: false, saving: false, id: null, sesionId: '', texto: '', responsableId: '', fechaLimite: '', estado: 'pendiente' })
+
+function openAcuerdoModal(acuerdo = null) {
+  if (acuerdo) {
+    Object.assign(acuerdoModal, {
+      id: acuerdo.id, sesionId: acuerdo.sesionId, texto: acuerdo.texto,
+      responsableId: acuerdo.responsableId || '', fechaLimite: acuerdo.fechaLimiteISO || '', estado: acuerdo.estadoRaw,
+    })
+  } else {
+    Object.assign(acuerdoModal, { id: null, sesionId: sesiones.value[0]?.id || '', texto: '', responsableId: '', fechaLimite: '', estado: 'pendiente' })
+  }
+  acuerdoModal.open = true
+}
+
+async function guardarAcuerdo() {
+  if (!acuerdoModal.texto.trim() || !acuerdoModal.sesionId) return
+  acuerdoModal.saving = true
+  const payload = { texto: acuerdoModal.texto.trim(), responsableId: acuerdoModal.responsableId || null, fechaLimite: acuerdoModal.fechaLimite || null, estado: acuerdoModal.estado }
+  const { data, error: err } = acuerdoModal.id
+    ? await updateAcuerdo(acuerdoModal.id, payload)
+    : await createAcuerdo(acuerdoModal.sesionId, payload)
+  acuerdoModal.saving = false
+  if (err) { pageError.value = err.message; return }
+
+  if (acuerdoModal.id) {
+    const idx = acuerdos.value.findIndex(a => a.id === data.id)
+    if (idx !== -1) acuerdos.value[idx] = data
+  } else {
+    acuerdos.value.unshift(data)
+  }
+  acuerdoModal.open = false
+}
+
+async function eliminarAcuerdoRow(acuerdo) {
+  if (!confirm('¿Eliminar este acuerdo?')) return
+  const { error: err } = await deleteAcuerdo(acuerdo.id)
+  if (err) { pageError.value = err.message; return }
+  acuerdos.value = acuerdos.value.filter(a => a.id !== acuerdo.id)
 }
 </script>
 
@@ -388,6 +723,8 @@ function deleteActa(acta) {
 .dark .page-title { color: #E2E8F0; }
 .page-subtitle { font-size: 13.5px; color: #4A6070; margin-top: 3px; }
 .dark .page-subtitle { color: #94A3B8; }
+
+.empty-state { text-align: center; color: #7A90A0; font-style: italic; padding: 30px 14px; }
 
 /* ── Grid de tarjetas ───────────────────── */
 .organs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 18px; }
@@ -450,17 +787,12 @@ function deleteActa(acta) {
 .dark .detail-page-title { color: #E2E8F0; }
 .detail-page-subtitle { font-size: 13.5px; color: #7A90A0; }
 
-/* ── Dos columnas ───────────────────────── */
-.detail-two-col {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;
-}
-@media (max-width: 900px) { .detail-two-col { grid-template-columns: 1fr; } }
-
 .detail-section {
   background: white; border: 1px solid #E8EEF4; border-radius: 12px;
   overflow: hidden; box-shadow: 0 1px 4px rgba(19,60,101,0.06);
 }
 .dark .detail-section { background: #1D293D; border-color: #3D5069; }
+.detail-section--full { width: 100%; }
 
 .section-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -469,6 +801,9 @@ function deleteActa(acta) {
 .dark .section-head { background: #162033; border-color: #3D5069; }
 .section-title { font-size: 13.5px; font-weight: 700; color: #133C65; }
 .dark .section-title { color: #E2E8F0; }
+
+.hint-text { font-size: 12.5px; color: #7A90A0; padding: 12px 18px 0; }
+.text-muted-sm { font-size: 12px; color: #B0C0D0; font-style: italic; }
 
 .table-wrap { overflow-x: auto; }
 
@@ -490,6 +825,9 @@ function deleteActa(acta) {
 .role-cell { font-size: 12.5px; }
 .empty-row { text-align: center; color: #B0C0D0; font-style: italic; padding: 22px 14px !important; }
 
+.td-sesion { display: block; font-weight: 500; }
+.td-sub { display: block; font-size: 11.5px; color: #7A90A0; }
+
 /* ── Badges ─────────────────────────────── */
 .badge {
   display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600;
@@ -498,9 +836,56 @@ function deleteActa(acta) {
 .badge--green  { background: rgba(26,145,82,0.12);  color: #1A6B42; }
 .badge--yellow { background: rgba(196,127,12,0.12); color: #7A5000; }
 .badge--red    { background: rgba(192,57,43,0.12);  color: #922B21; }
+.badge--blue   { background: #EBF3FF; color: #133C65; }
 .dark .badge--green  { background: rgba(74,222,128,0.18);  color: #4ADE80; }
 .dark .badge--yellow { background: rgba(251,191,36,0.18);  color: #FBE24A; }
 .dark .badge--red    { background: rgba(248,113,113,0.18); color: #F87171; }
+.dark .badge--blue   { background: rgba(147,184,216,0.12); color: #93B8D8; }
+
+/* ── KPI strip ──────────────────────────── */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding: 16px 18px 0; }
+@media (max-width: 768px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── Progreso ───────────────────────────── */
+.prog-wrap { display: flex; align-items: center; gap: 8px; }
+.prog-bg   { flex: 1; height: 6px; background: #E8EEF4; border-radius: 3px; overflow: hidden; min-width: 60px; }
+.prog-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+.prog--green { background: #22C55E; }
+.prog--blue  { background: #3B82F6; }
+.prog--red   { background: #EF4444; }
+.prog-pct  { font-size: 11px; font-weight: 600; color: #4A6070; white-space: nowrap; }
+.dark .prog-bg { background: #2D3F55; }
+.dark .prog-pct { color: #94A3B8; }
+
+.txt-red { color: #C0392B; }
+.dark .txt-red { color: #F87171; }
+.fw-600 { font-weight: 600; }
+
+/* ── Acta ───────────────────────────────── */
+.acta-link {
+  display: inline-flex; align-items: center; gap: 5px; background: none; border: none;
+  color: #133C65; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0;
+}
+.acta-link:hover { text-decoration: underline; }
+.dark .acta-link { color: #93B8D8; }
+.acta-attach { display: flex; flex-direction: column; gap: 6px; }
+.acta-attach label { font-size: 12.5px; font-weight: 600; color: #4A6070; }
+.dark .acta-attach label { color: #94A3B8; }
+.acta-attach-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.acta-remove { background: none; border: none; color: #C0392B; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0; }
+.acta-remove:hover { text-decoration: underline; }
+
+.file-drop {
+  border: 2px dashed #D4E4F4; border-radius: 10px; padding: 18px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-align: center; background: #F8FAFC; transition: border-color 0.15s;
+}
+.dark .file-drop { background: #162033; border-color: #3D5069; }
+.file-drop p { font-size: 13px; color: #4A6070; margin: 0; }
+.dark .file-drop p { color: #94A3B8; }
+.file-drop small { font-size: 11.5px; color: #B0C0D0; }
+.file-link { color: #133C65; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.dark .file-link { color: #93B8D8; }
 
 /* ── Acciones ───────────────────────────── */
 .action-btn {
@@ -524,9 +909,14 @@ function deleteActa(acta) {
 
 /* ── Edit slots ─────────────────────────── */
 .edit-slots { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; }
-.edit-slot { display: flex; flex-direction: column; gap: 4px; }
-.slot-role { font-size: 12px; font-weight: 700; color: #133C65; }
-.dark .slot-role { color: #93B8D8; }
+.edit-slot { display: flex; flex-direction: column; gap: 6px; }
+.edit-slot-head { display: flex; align-items: center; gap: 8px; }
+.slot-role-input {
+  flex: 1; height: 32px; padding: 0 10px; border: 1.5px solid #D4E4F4; border-radius: 6px;
+  font-size: 12.5px; font-weight: 600; color: #133C65; font-family: inherit; outline: none; background: white;
+}
+.dark .slot-role-input { background: #162033; border-color: #3D5069; color: #93B8D8; }
+.slot-role-input:focus { border-color: #133C65; }
 
 .edit-actions {
   display: flex; justify-content: flex-end; gap: 8px;
@@ -553,11 +943,11 @@ function deleteActa(acta) {
   display: flex; align-items: center; justify-content: center;
 }
 .ac-clear {
-  position: absolute; right: 10px;
   background: #F0F4F8; border: none; border-radius: 4px; color: #7A90A0;
   width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: background 0.12s;
+  cursor: pointer; transition: background 0.12s; flex-shrink: 0;
 }
+.ac-clear--inset { position: absolute; right: 10px; }
 .ac-clear:hover { background: #E8EEF4; color: #C0392B; }
 
 .autocomplete-dropdown {
@@ -581,8 +971,6 @@ function deleteActa(acta) {
 .ac-item-name { font-size: 13px; font-weight: 600; color: #1A2B3C; }
 .dark .ac-item-name { color: #E2E8F0; }
 .ac-item-cedula { font-size: 11px; color: #7A90A0; font-family: monospace; }
-.ac-item-cargo { font-size: 11px; color: #7A90A0; background: #F0F4F8; padding: 2px 7px; border-radius: 12px; }
-.dark .ac-item-cargo { background: #2D3F55; }
 
 /* ── Botones ────────────────────────────── */
 .btn-primary {
@@ -591,7 +979,8 @@ function deleteActa(acta) {
   border: none; padding: 9px 18px; border-radius: 8px; cursor: pointer;
   transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
 }
-.btn-primary:hover { background: #0D2A47; }
+.btn-primary:hover:not(:disabled) { background: #0D2A47; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 7px 13px; font-size: 12.5px; }
 
 .btn-outline {
@@ -603,6 +992,47 @@ function deleteActa(acta) {
 .dark .btn-outline { color: #93B8D8; border-color: #3D5069; }
 .dark .btn-outline:hover { background: rgba(147,184,216,0.1); border-color: #93B8D8; }
 
+/* ── Modal ──────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(10,24,40,0.5);
+  backdrop-filter: blur(3px); z-index: 500;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.modal-box {
+  background: white; border-radius: 16px; padding: 28px;
+  width: 100%; max-width: 480px; position: relative;
+  box-shadow: 0 24px 80px rgba(19,60,101,0.22); max-height: 90vh; overflow-y: auto;
+}
+.dark .modal-box { background: #1D293D; }
+.modal-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border-radius: 7px; background: #F4F6F8;
+  border: none; color: #7A90A0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-close:hover { background: #E8EEF4; }
+.dark .modal-close { background: #162033; }
+.modal-title { font-size: 18px; font-weight: 700; color: #133C65; margin-bottom: 18px; }
+.dark .modal-title { color: #E2E8F0; }
+.modal-form { display: flex; flex-direction: column; gap: 14px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-field { display: flex; flex-direction: column; gap: 5px; }
+.form-field label { font-size: 12.5px; font-weight: 600; color: #4A6070; }
+.dark .form-field label { color: #94A3B8; }
+.form-field input, .form-field select, .form-field textarea {
+  height: 38px; padding: 0 12px;
+  border: 1.5px solid #D4E4F4; border-radius: 7px;
+  font-size: 13.5px; font-family: inherit; background: white; color: #1A2B3C; outline: none;
+}
+.form-field textarea { height: auto; padding: 10px 12px; resize: vertical; }
+.dark .form-field input, .dark .form-field select, .dark .form-field textarea {
+  background: #162033; border-color: #3D5069; color: #E2E8F0;
+}
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: #133C65; }
+.req { color: #C0392B; }
+
 /* ── Transitions ────────────────────────── */
 .dropdown-fade-enter-active, .dropdown-fade-leave-active { transition: opacity 0.12s ease, transform 0.12s ease; }
 .dropdown-fade-enter-from, .dropdown-fade-leave-to { opacity: 0; transform: translateY(-4px); }
@@ -611,8 +1041,6 @@ function deleteActa(acta) {
 @media (max-width: 768px) {
   .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .page-header .btn-primary { width: 100%; justify-content: center; }
-  .data-card { overflow-x: auto; }
   .organs-grid { grid-template-columns: 1fr; }
-  .detail-two-col { grid-template-columns: 1fr; }
 }
 </style>

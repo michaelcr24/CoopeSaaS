@@ -1063,8 +1063,7 @@ BEGIN
   FOR t IN SELECT unnest(ARRAY[
     'departamentos', 'cargos', 'nominas', 'permisos_empleado',
     'capacitaciones', 'capacitacion_empleados', 'asociado_beneficiarios',
-    'asociado_aportes', 'asociado_comunicaciones', 'organo_miembros',
-    'organo_sesiones', 'sesion_asistencia', 'sesion_acuerdos',
+    'asociado_aportes', 'asociado_comunicaciones',
     'comite_miembros', 'comite_reuniones', 'comite_reunion_asistencia',
     'comite_reunion_acuerdos', 'asamblea_invitados', 'asamblea_propuestas',
     'asamblea_postulaciones', 'votacion_opciones', 'votacion_votos',
@@ -1087,6 +1086,29 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+-- organo_miembros / organo_sesiones / sesion_asistencia / sesion_acuerdos no
+-- tienen columna cooperativa_id propia (solo organo_id/sesion_id), asi que no
+-- pueden usar el patron generico de arriba: se escalan hasta organos.cooperativa_id.
+CREATE POLICY "rls_select_organo_miembros" ON organo_miembros FOR SELECT
+  USING (organo_id IN (SELECT id FROM organos WHERE cooperativa_id = public.user_cooperativa_id()));
+CREATE POLICY "rls_all_organo_miembros" ON organo_miembros FOR ALL
+  USING (public.is_admin_or_consejo() AND organo_id IN (SELECT id FROM organos WHERE cooperativa_id = public.user_cooperativa_id()));
+
+CREATE POLICY "rls_select_organo_sesiones" ON organo_sesiones FOR SELECT
+  USING (organo_id IN (SELECT id FROM organos WHERE cooperativa_id = public.user_cooperativa_id()));
+CREATE POLICY "rls_all_organo_sesiones" ON organo_sesiones FOR ALL
+  USING (public.is_admin_or_consejo() AND organo_id IN (SELECT id FROM organos WHERE cooperativa_id = public.user_cooperativa_id()));
+
+CREATE POLICY "rls_select_sesion_asistencia" ON sesion_asistencia FOR SELECT
+  USING (sesion_id IN (SELECT s.id FROM organo_sesiones s JOIN organos o ON o.id = s.organo_id WHERE o.cooperativa_id = public.user_cooperativa_id()));
+CREATE POLICY "rls_all_sesion_asistencia" ON sesion_asistencia FOR ALL
+  USING (public.is_admin_or_consejo() AND sesion_id IN (SELECT s.id FROM organo_sesiones s JOIN organos o ON o.id = s.organo_id WHERE o.cooperativa_id = public.user_cooperativa_id()));
+
+CREATE POLICY "rls_select_sesion_acuerdos" ON sesion_acuerdos FOR SELECT
+  USING (sesion_id IN (SELECT s.id FROM organo_sesiones s JOIN organos o ON o.id = s.organo_id WHERE o.cooperativa_id = public.user_cooperativa_id()));
+CREATE POLICY "rls_all_sesion_acuerdos" ON sesion_acuerdos FOR ALL
+  USING (public.is_admin_or_consejo() AND sesion_id IN (SELECT s.id FROM organo_sesiones s JOIN organos o ON o.id = s.organo_id WHERE o.cooperativa_id = public.user_cooperativa_id()));
 
 -- ================================================================
 -- 18. TRIGGERS
