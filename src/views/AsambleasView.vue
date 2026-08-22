@@ -1265,7 +1265,7 @@ async function confirmarPostulante() {
     postModal.open = false
     return
   }
-  const { data, error: err } = await addPostulante(puesto.dbId, postModal.selected.id)
+  const { data, error: err } = await addPostulante(currentAsambleaId.value, puesto.dbId, puesto.tipo, postModal.selected.id)
   if (err) { wizardError.value = err.message; return }
   puesto.postulantes.push(mapPostulacionRow(data))
   postModal.open = false
@@ -1507,7 +1507,7 @@ async function enviarPostulacion() {
   if (!miAsociado.value) { wizardError.value = 'No se encontró tu registro de asociado.'; return }
   for (const p of seleccionados) {
     if (!p.dbId) continue
-    const { data, error: err } = await addPostulante(p.dbId, miAsociado.value.id)
+    const { data, error: err } = await addPostulante(currentPostulacion.value.id, p.dbId, p.tipo, miAsociado.value.id)
     if (!err) {
       juanPostulaciones.value.push({
         id: data.id, consejo: p.consejoName, puesto: p.tipo, asamblea: currentPostulacion.value?.name,

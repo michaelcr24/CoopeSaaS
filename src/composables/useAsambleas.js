@@ -205,10 +205,10 @@ export function useAsambleas() {
   }
 
   // Paso 4: Postulaciones
-  async function addPostulante(puestoId, asociadoId) {
+  async function addPostulante(asambleaId, puestoId, cargo, asociadoId) {
     return supabase
       .from('asamblea_postulaciones')
-      .insert({ puesto_id: puestoId, asociado_id: asociadoId, estado: 'pendiente' })
+      .insert({ asamblea_id: asambleaId, puesto_id: puestoId, cargo, asociado_id: asociadoId, estado: 'pendiente' })
       .select('*, asociados(id, nombre, cedula, foto_url)')
       .single()
   }
