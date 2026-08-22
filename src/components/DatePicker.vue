@@ -7,7 +7,7 @@
 
     <Teleport to="body">
       <Transition name="dp-fade">
-        <div v-if="open" class="dp-popover" :style="popoverStyle" @click.stop>
+        <div v-if="open" ref="popoverRef" class="dp-popover" :style="popoverStyle" @click.stop>
           <div class="dp-header">
             <button type="button" class="dp-nav" @click="prevMonth">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
@@ -74,6 +74,7 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const DIAS = ['Do','Lu','Ma','Mi','Ju','Vi','Sá']
 
 const wrapRef = ref(null)
+const popoverRef = ref(null)
 const open = ref(false)
 const popoverStyle = ref({})
 const internalValue = ref(props.modelValue || '')
@@ -170,12 +171,15 @@ function positionPopover() {
   if (!el) return
   const rect = el.getBoundingClientRect()
   const popoverWidth = 280
+  const popoverHeight = 360
   let left = rect.left
   if (left + popoverWidth > window.innerWidth - 8) left = window.innerWidth - popoverWidth - 8
-  popoverStyle.value = {
-    top: `${rect.bottom + 6}px`,
-    left: `${Math.max(8, left)}px`,
-  }
+
+  const spaceBelow = window.innerHeight - rect.bottom
+  const openUpward = spaceBelow < popoverHeight && rect.top > spaceBelow
+  popoverStyle.value = openUpward
+    ? { bottom: `${window.innerHeight - rect.top + 6}px`, left: `${Math.max(8, left)}px` }
+    : { top: `${rect.bottom + 6}px`, left: `${Math.max(8, left)}px` }
 }
 
 function toggle() {
@@ -192,7 +196,9 @@ function toggle() {
 
 function onDocClick(e) {
   if (!open.value) return
-  if (wrapRef.value && !wrapRef.value.contains(e.target)) open.value = false
+  if (wrapRef.value?.contains(e.target)) return
+  if (popoverRef.value?.contains(e.target)) return
+  open.value = false
 }
 function onScrollOrResize() {
   if (open.value) positionPopover()

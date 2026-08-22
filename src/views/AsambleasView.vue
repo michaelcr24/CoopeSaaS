@@ -10,7 +10,7 @@
           <h2 class="page-title">Asambleas</h2>
           <p class="page-subtitle">Planificación, elecciones y archivo de asambleas</p>
         </div>
-        <button v-if="!isAsociado" class="btn-primary" @click="startWizard()">
+        <button class="btn-primary" @click="startWizard()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Programar asamblea
         </button>
@@ -32,8 +32,7 @@
             <span class="next-step-label">Paso actual</span>
             <span class="next-step-val">{{ steps[proxima.step - 1].label }}</span>
           </div>
-          <button v-if="!isAsociado" class="btn-outline-white" @click="startWizard(proxima)">Continuar proceso</button>
-          <button v-if="isAsociado" class="btn-outline-white" @click="openPostulacion(proxima)">Ver mis postulaciones</button>
+          <button class="btn-outline-white" @click="startWizard(proxima)">Continuar proceso</button>
         </div>
       </div>
 
@@ -41,10 +40,10 @@
         <div class="card-head">
           <h3 class="card-title">Historial de asambleas</h3>
           <div class="header-actions">
-            <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(asambleas,[{key:'name',label:'Asamblea'},{key:'type',label:'Tipo'},{key:'date',label:'Fecha'},{key:'quorum',label:'Quórum %'},{key:'status',label:'Estado'}],'asambleas')">
+            <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(asambleas,[{key:'name',label:'Asamblea'},{key:'type',label:'Tipo'},{key:'date',label:'Fecha'},{key:'quorum',label:'Quórum %'},{key:'status',label:'Estado'}],'asambleas')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
             </button>
-            <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Historial de Asambleas')">
+            <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(asambleas,[{key:'name',label:'Asamblea'},{key:'type',label:'Tipo'},{key:'date',label:'Fecha'},{key:'quorum',label:'Quórum %'},{key:'status',label:'Estado'}],'Historial de Asambleas')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
             </button>
           </div>
@@ -78,11 +77,8 @@
               </td>
               <td><span class="badge" :class="`badge--${a.statusClass}`">{{ a.status }}</span></td>
               <td class="cell-actions">
-                <button v-if="!isAsociado" class="action-btn" title="Abrir proceso" @click="startWizard(a)">
+                <button class="action-btn" title="Abrir proceso" @click="startWizard(a)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-                </button>
-                <button v-if="isAsociado" class="action-btn" title="Mis postulaciones" @click="openPostulacion(a)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </td>
             </tr>
@@ -833,8 +829,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { exportCSV, exportPDF } from '../composables/useExport.js'
-import { useRole } from '../composables/useRole.js'
+import { exportExcel, exportPDF } from '../composables/useExport.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useAsambleas, TIPO_LABEL, MODALIDAD_LABEL } from '../composables/useAsambleas.js'
 import { useVotaciones } from '../composables/useVotaciones.js'
@@ -844,7 +839,6 @@ import { isSupabaseConfigured } from '../lib/supabase.js'
 import DatePicker from '../components/DatePicker.vue'
 
 const router = useRouter()
-const { isAdmin, isOperador, isAsociado } = useRole()
 const { currentUser, cooperativaId } = useAuth()
 const {
   listAsambleas, getAsamblea, createDraft,

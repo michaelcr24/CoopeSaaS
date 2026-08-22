@@ -6,6 +6,11 @@ const _session = ref(null)
 const _loading = ref(true)
 const _initialized = ref(false)
 
+// Si un login/logout manual ya estableció el usuario mientras esta carga
+// inicial seguía en curso (más probable con la latencia de una red móvil),
+// no debe pisarlo con el estado (sin sesión) que existía antes de eso.
+let _manualAuthActionTaken = false
+
 async function initializeAuth() {
   if (_initialized.value) return
   _initialized.value = true
@@ -19,23 +24,46 @@ async function initializeAuth() {
     return
   }
 
-  const { data: { session } } = await supabase.auth.getSession()
-  _session.value = session
-  _user.value = await withProfile(session?.user ?? null)
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    await aceptarInvitacionPendiente()
+    const profileUser = await withProfile(session?.user ?? null)
+    if (!_manualAuthActionTaken) {
+      _session.value = session
+      _user.value = profileUser
+    }
+  } catch {
+    // Sin conexión o falla temporal: se sigue con _user en null; el listener
+    // de abajo actualizará el estado en cuanto haya un evento de auth real.
+  }
 
   supabase.auth.onAuthStateChange(async (_event, session) => {
     _session.value = session
+    await aceptarInvitacionPendiente()
     _user.value = await withProfile(session?.user ?? null)
   })
 
   _loading.value = false
 }
 
+// Si la persona aceptó una invitación pero Supabase exigió confirmar el
+// correo antes de abrir sesión, el código quedó guardado localmente en el
+// paso de registro. En cuanto haya una sesión activa (login o confirmación),
+// completamos la vinculación con la cooperativa automáticamente.
+async function aceptarInvitacionPendiente() {
+  const codigo = localStorage.getItem('coopesaas-pending-invite')
+  if (!codigo) return
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return
+  const { error } = await supabase.rpc('aceptar_invitacion', { p_codigo: codigo })
+  if (!error) localStorage.removeItem('coopesaas-pending-invite')
+}
+
 async function withProfile(user) {
   if (!user) return null
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, cooperativa_members(cooperativa_id)')
+    .select('*, cooperativa_members(cooperativa_id, cooperativas(nombre))')
     .eq('id', user.id)
     .maybeSingle()
   return { ...user, profile }
@@ -54,6 +82,8 @@ export function useAuth() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error }
 
+    _manualAuthActionTaken = true
+    _session.value = data.session
     _user.value = await withProfile(data.user)
 
     return { error: null, data }
@@ -82,6 +112,7 @@ export function useAuth() {
   }
 
   async function clearUser() {
+    _manualAuthActionTaken = true
     if (isSupabaseConfigured() && supabase) {
       await supabase.auth.signOut()
     }
@@ -101,6 +132,7 @@ export function useAuth() {
   const userEmail = computed(() => _user.value?.email || '')
 
   const cooperativaId = computed(() => _user.value?.profile?.cooperativa_members?.[0]?.cooperativa_id ?? null)
+  const cooperativaNombre = computed(() => _user.value?.profile?.cooperativa_members?.[0]?.cooperativas?.nombre ?? null)
 
   const initials = computed(() => {
     const parts = fullName.value.split(' ').filter(Boolean)
@@ -116,6 +148,7 @@ export function useAuth() {
     firstName,
     userEmail,
     cooperativaId,
+    cooperativaNombre,
     initials,
     setUser,
     clearUser,

@@ -17,7 +17,7 @@
     <div class="tabs-wrap">
       <div class="tabs-nav">
         <button
-          v-for="tab in visibleTabs"
+          v-for="tab in tabs"
           :key="tab.key"
           class="tab-btn"
           :class="{ 'tab-btn--active': activeTab === tab.key }"
@@ -52,9 +52,7 @@
         </div>
         <select v-model="filterDept" class="filter-select">
           <option value="">Todos los departamentos</option>
-          <option>Administración</option>
-          <option>Operaciones</option>
-          <option>Finanzas</option>
+          <option v-for="d in departamentos" :key="d.id" :value="d.nombre">{{ d.nombre }}</option>
         </select>
         <select v-model="filterStatus" class="filter-select">
           <option value="">Todos los estados</option>
@@ -63,10 +61,11 @@
         </select>
         <div class="export-group">
           <button class="export-btn export-btn--excel" title="Exportar a Excel"
-            @click="exportCSV(filteredEmployees, [{key:'name',label:'Nombre'},{key:'role',label:'Puesto'},{key:'dept',label:'Departamento'},{key:'date',label:'Fecha ingreso'}], 'colaboradores')">
+            @click="exportExcel(filteredEmployees, [{key:'name',label:'Nombre'},{key:'role',label:'Puesto'},{key:'dept',label:'Departamento'},{key:'date',label:'Fecha ingreso'}], 'colaboradores')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Colaboradores')">
+          <button class="export-btn export-btn--pdf" title="Exportar a PDF"
+            @click="exportPDF(filteredEmployees, [{key:'name',label:'Nombre'},{key:'role',label:'Puesto'},{key:'dept',label:'Departamento'},{key:'date',label:'Fecha ingreso'}], 'Colaboradores')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </button>
         </div>
@@ -89,7 +88,7 @@
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: emp.color }">{{ emp.initials }}</div>
-                  <span>{{ emp.name }}</span>
+                  <span>{{ nombreCompleto(emp) }}</span>
                 </div>
               </td>
               <td>{{ emp.role }}</td>
@@ -97,11 +96,14 @@
               <td>{{ emp.date }}</td>
               <td><span class="badge" :class="emp.active ? 'badge--green' : 'badge--gray'">{{ emp.active ? 'Activo' : 'Inactivo' }}</span></td>
               <td class="cell-actions">
-                <button class="action-btn" title="Ver expediente" @click="activeTab='expedientes'">
+                <button class="action-btn" title="Ver expediente" @click="selectedEmp = emp; activeTab='expedientes'">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
                 <button class="action-btn" title="Editar" @click="openModal('editar', emp)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarEmpleado(emp)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                 </button>
               </td>
             </tr>
@@ -122,11 +124,12 @@
         <div class="exp-sidebar">
           <div class="exp-search-wrap">
             <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" placeholder="Buscar..." class="search-input search-input--sm" />
+            <input v-model="expedientesSearch" type="search" placeholder="Buscar..." class="search-input search-input--sm" />
           </div>
           <div class="exp-list">
+            <div v-if="!filteredExpedientesEmployees.length" class="exp-mini-empty" style="padding: 12px;">Sin resultados</div>
             <div
-              v-for="emp in visibleEmployees"
+              v-for="emp in filteredExpedientesEmployees"
               :key="emp.id"
               class="exp-item"
               :class="{ 'exp-item--active': selectedEmp?.id === emp.id }"
@@ -134,7 +137,7 @@
             >
               <div class="cell-avatar cell-avatar--sm" :style="{ background: emp.color }">{{ emp.initials }}</div>
               <div class="exp-item-info">
-                <span class="exp-item-name">{{ emp.name }}</span>
+                <span class="exp-item-name">{{ nombreCompleto(emp) }}</span>
                 <span class="exp-item-role">{{ emp.role }}</span>
               </div>
               <span class="badge badge--xs" :class="emp.active ? 'badge--green' : 'badge--gray'">
@@ -149,14 +152,11 @@
           <div class="exp-detail-header">
             <div class="cell-avatar cell-avatar--lg" :style="{ background: selectedEmp.color }">{{ selectedEmp.initials }}</div>
             <div>
-              <h3 class="exp-name">{{ selectedEmp.name }}</h3>
+              <h3 class="exp-name">{{ nombreCompleto(selectedEmp) }}</h3>
               <p class="exp-role">{{ selectedEmp.role }} · {{ selectedEmp.dept }}</p>
             </div>
             <div class="exp-header-actions">
-              <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV([selectedEmp],[{key:'name',label:'Nombre'},{key:'role',label:'Puesto'},{key:'dept',label:'Departamento'},{key:'date',label:'Fecha ingreso'}],'expediente')">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
-              </button>
-              <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Expediente ' + selectedEmp.name)">
+              <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportarExpedientePDF">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
               </button>
               <button class="btn-outline btn-sm" @click="openModal('editar', selectedEmp)">
@@ -170,42 +170,105 @@
             <div class="exp-section">
               <h4 class="exp-section-title">Información personal</h4>
               <div class="exp-grid">
-                <div class="exp-field"><label>Identificación</label><span>1-0234-0567</span></div>
-                <div class="exp-field"><label>Fecha de nacimiento</label><span>12/04/1985</span></div>
-                <div class="exp-field"><label>Género</label><span>Femenino</span></div>
-                <div class="exp-field"><label>Nacionalidad</label><span>Costarricense</span></div>
-                <div class="exp-field"><label>Estado civil</label><span>Casada</span></div>
-                <div class="exp-field"><label>Teléfono</label><span>8888-1234</span></div>
-                <div class="exp-field exp-field--full"><label>Correo electrónico</label><span>colaborador@cooperativa.com</span></div>
-                <div class="exp-field exp-field--full"><label>Dirección</label><span>San José, Costa Rica</span></div>
+                <div class="exp-field"><label>Nombre completo</label><span>{{ nombreCompleto(selectedEmp) || '—' }}</span></div>
+                <div class="exp-field"><label>Identificación</label><span>{{ selectedEmp.identificacion || '—' }}<span v-if="selectedEmp.tipoIdentificacion"> ({{ selectedEmp.tipoIdentificacion }})</span></span></div>
+                <div class="exp-field"><label>Fecha de nacimiento</label><span>{{ selectedEmp.fechaNacimiento ? inputDateToDdmmyyyy(selectedEmp.fechaNacimiento) : '—' }}</span></div>
+                <div class="exp-field"><label>Nacionalidad</label><span>{{ selectedEmp.nacionalidad || '—' }}</span></div>
+                <div class="exp-field"><label>Sexo</label><span>{{ selectedEmp.genero || '—' }}</span></div>
+                <div class="exp-field"><label>Estado civil</label><span>{{ selectedEmp.estadoCivil || '—' }}</span></div>
+                <div class="exp-field"><label>Teléfono principal</label><span>{{ selectedEmp.telefono || '—' }}</span></div>
+                <div class="exp-field"><label>Teléfono secundario</label><span>{{ selectedEmp.telefonoSecundario || '—' }}</span></div>
+                <div class="exp-field"><label>Correo personal</label><span>{{ selectedEmp.correoPersonal || '—' }}</span></div>
+                <div class="exp-field"><label>Correo institucional</label><span>{{ selectedEmp.correoInstitucional || '—' }}</span></div>
+                <div class="exp-field exp-field--full"><label>Dirección</label><span>{{ [selectedEmp.provincia, selectedEmp.canton, selectedEmp.distrito, selectedEmp.direccionExacta].filter(Boolean).join(', ') || '—' }}</span></div>
               </div>
             </div>
 
             <div class="exp-section">
               <h4 class="exp-section-title">Información laboral</h4>
               <div class="exp-grid">
-                <div class="exp-field"><label>Código de empleado</label><span>EMP-001</span></div>
+                <div class="exp-field"><label>Código interno</label><span>{{ selectedEmp.codigoInterno || '—' }}</span></div>
                 <div class="exp-field"><label>Fecha de ingreso</label><span>{{ selectedEmp.date }}</span></div>
                 <div class="exp-field"><label>Departamento</label><span>{{ selectedEmp.dept }}</span></div>
-                <div class="exp-field"><label>Tipo de contrato</label><span>Tiempo completo</span></div>
-                <div class="exp-field"><label>Jornada laboral</label><span>Lunes a Viernes 8h</span></div>
-                <div class="exp-field"><label>Salario base</label><span>₡ 650,000</span></div>
+                <div class="exp-field"><label>Puesto</label><span>{{ selectedEmp.role }}</span></div>
+                <div class="exp-field"><label>Jefatura inmediata</label><span>{{ jefeOptions.find(j => j.id === selectedEmp.jefeInmediatoId)?.name || '—' }}</span></div>
+                <div class="exp-field"><label>Sede</label><span>{{ nombreEnCatalogo(selectedEmp.sedeId, sedes) || '—' }}</span></div>
+                <div class="exp-field"><label>Tipo de contratación</label><span>{{ selectedEmp.tipoContrato || '—' }}</span></div>
+                <div class="exp-field"><label>Jornada</label><span>{{ nombreEnCatalogo(selectedEmp.jornadaId, jornadas) || '—' }}</span></div>
+                <div class="exp-field"><label>Horario</label><span>{{ nombreEnCatalogo(selectedEmp.horarioId, horarios) || '—' }}</span></div>
+                <div class="exp-field"><label>Estado</label><span>{{ selectedEmp.active ? 'Activo' : 'Inactivo' }}</span></div>
+                <div class="exp-field"><label>Salario base</label><span>{{ selectedEmp.salario ? (selectedEmp.moneda || 'CRC') + ' ' + Number(selectedEmp.salario).toLocaleString('es-CR') : '—' }}</span></div>
+                <div class="exp-field"><label>Forma de pago</label><span>{{ selectedEmp.formaPago || '—' }}</span></div>
               </div>
             </div>
 
             <div class="exp-section">
-              <h4 class="exp-section-title">Contacto de emergencia</h4>
-              <div class="exp-grid">
-                <div class="exp-field"><label>Nombre</label><span>Roberto González</span></div>
-                <div class="exp-field"><label>Relación</label><span>Esposo</span></div>
-                <div class="exp-field"><label>Teléfono</label><span>8888-5678</span></div>
+              <h4 class="exp-section-title">Contactos de emergencia</h4>
+              <ul class="exp-mini-list">
+                <li v-if="!dContactos.length" class="exp-mini-empty">Sin contactos registrados</li>
+                <li v-for="c in dContactos" :key="c.id" class="exp-mini-item">
+                  <div>
+                    <strong>{{ c.nombre_completo }}</strong> <span v-if="c.es_principal" class="badge badge--green">Principal</span>
+                    <div class="exp-mini-sub">{{ c.parentesco }} · {{ c.telefono_principal }}</div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="exp-section">
+              <h4 class="exp-section-title">Contratos</h4>
+              <ul class="exp-mini-list">
+                <li v-if="!dContratos.length" class="exp-mini-empty">Sin contratos registrados</li>
+                <li v-for="c in dContratos" :key="c.id" class="exp-mini-item">
+                  <div>
+                    <strong>{{ c.numero_contrato || 'Sin número' }}</strong> <span class="badge badge--blue">{{ c.estado_contrato }}</span>
+                    <div class="exp-mini-sub">Desde {{ c.fecha_inicio }}<span v-if="c.fecha_fin"> hasta {{ c.fecha_fin }}</span></div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="exp-section">
+              <h4 class="exp-section-title">Formación académica</h4>
+              <ul class="exp-mini-list">
+                <li v-if="!dFormacionAcademica.length" class="exp-mini-empty">Sin estudios registrados</li>
+                <li v-for="f in dFormacionAcademica" :key="f.id" class="exp-mini-item">
+                  <div><strong>{{ f.titulo_obtenido || f.nivel_academico }}</strong><div class="exp-mini-sub">{{ f.nivel_academico }}<span v-if="f.profesion"> · {{ f.profesion }}</span></div></div>
+                  <a v-if="f.documentos_empleado" href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(f.documentos_empleado.storage_path)">📎 Ver documento</a>
+                </li>
+              </ul>
+              <p v-if="dColegiaturas.length" class="exp-subtitle" style="margin-top:10px">Colegiatura profesional</p>
+              <ul class="exp-mini-list">
+                <li v-for="c in dColegiaturas" :key="c.id" class="exp-mini-item">
+                  <div><strong>N° {{ c.numero_colegiado || '—' }}</strong> <span class="badge badge--blue">{{ c.estado }}</span></div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="exp-section">
+              <h4 class="exp-section-title">Certificaciones y cursos</h4>
+              <ul class="exp-mini-list">
+                <li v-if="!dCertificaciones.length && !dCursos.length" class="exp-mini-empty">Sin certificaciones ni cursos registrados</li>
+                <li v-for="c in dCertificaciones" :key="'cert-' + c.id" class="exp-mini-item">
+                  <div><strong>{{ c.nombre }}</strong> <span class="badge badge--blue">{{ c.estado }}</span><div class="exp-mini-sub">{{ c.institucion_certificadora }}</div></div>
+                  <a v-if="c.documentos_empleado" href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(c.documentos_empleado.storage_path)">📎 Ver documento</a>
+                </li>
+                <li v-for="c in dCursos" :key="'curso-' + c.id" class="exp-mini-item">
+                  <div><strong>{{ c.nombre_curso }}</strong><div class="exp-mini-sub">{{ c.institucion }} · {{ c.modalidad }}</div></div>
+                </li>
+              </ul>
+            </div>
+
+            <div class="exp-section">
+              <h4 class="exp-section-title">Información bancaria</h4>
+              <p v-if="dBancariosSinAcceso" class="exp-hint">No tienes acceso a esta información.</p>
+              <div v-else class="exp-grid">
+                <div class="exp-field"><label>Banco</label><span>{{ dBancarios.banco || '—' }}</span></div>
+                <div class="exp-field"><label>Tipo de cuenta</label><span>{{ dBancarios.tipo_cuenta || '—' }}</span></div>
+                <div class="exp-field"><label>Número de cuenta</label><span>{{ dBancarios.numero_cuenta || '—' }}</span></div>
+                <div class="exp-field"><label>IBAN</label><span>{{ dBancarios.iban || '—' }}</span></div>
               </div>
             </div>
-          </div>
-
-          <div class="exp-actions">
-            <button class="btn-outline">Editar expediente</button>
-            <button class="btn-primary">Guardar cambios</button>
           </div>
         </div>
 
@@ -222,35 +285,55 @@
     <template v-if="activeTab === 'vacaciones'">
       <div class="vac-summary">
         <div class="vac-saldo">
-          <span class="vac-num">12</span>
-          <span class="vac-lbl">Días disponibles</span>
+          <span class="vac-num">{{ vacacionesStats.total }}</span>
+          <span class="vac-lbl">Solicitudes totales</span>
         </div>
         <div class="vac-saldo">
-          <span class="vac-num">8</span>
-          <span class="vac-lbl">Días utilizados</span>
+          <span class="vac-num">{{ vacacionesStats.diasAprobados }}</span>
+          <span class="vac-lbl">Días aprobados</span>
         </div>
         <div class="vac-saldo">
-          <span class="vac-num">5</span>
+          <span class="vac-num">{{ vacacionesStats.pendientes }}</span>
           <span class="vac-lbl">Solicitudes pendientes</span>
         </div>
         <div class="export-group">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(vacaciones,[{key:'name',label:'Colaborador'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'dias',label:'Días'},{key:'status',label:'Estado'}],'vacaciones')">
+          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(vacacionesFiltradas,[{key:'numeroSolicitud',label:'N° Solicitud'},{key:'name',label:'Colaborador'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'dias',label:'Días'},{key:'status',label:'Estado'}],'vacaciones')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Vacaciones')">
+          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(vacacionesFiltradas,[{key:'numeroSolicitud',label:'N° Solicitud'},{key:'name',label:'Colaborador'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'dias',label:'Días'},{key:'status',label:'Estado'}],'Vacaciones')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </button>
-          <button class="btn-primary vac-btn" @click="openModal('vacacion')">
+          <button class="btn-primary vac-btn" @click="abrirNuevaVacacion">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Nueva solicitud
           </button>
         </div>
       </div>
 
+      <div class="filters-bar">
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="vacFiltroNumero" type="search" placeholder="N° de solicitud..." class="search-input" />
+        </div>
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="vacFiltroNombre" type="search" placeholder="Nombre del colaborador..." class="search-input" />
+        </div>
+        <div class="filter-date"><DatePicker v-model="vacFiltroFecha" placeholder="Fecha" /></div>
+        <select v-model="vacFiltroEstado" class="filter-select">
+          <option value="">Todos los estados</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Aprobada">Aprobada</option>
+          <option value="Rechazada">Rechazada</option>
+          <option value="Cancelada">Cancelada</option>
+        </select>
+      </div>
+
       <div class="data-card">
         <table class="data-table">
           <thead>
             <tr>
+              <th>N° Solicitud</th>
               <th>Colaborador</th>
               <th>Fecha inicio</th>
               <th>Fecha fin</th>
@@ -260,7 +343,8 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="v in visibleVacaciones" :key="v.id">
+            <tr v-for="v in vacacionesFiltradas" :key="v.id">
+              <td>{{ v.numeroSolicitud }}</td>
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: v.color }">{{ v.initials }}</div>
@@ -272,13 +356,19 @@
               <td>{{ v.dias }}</td>
               <td><span class="badge" :class="`badge--${v.statusClass}`">{{ v.status }}</span></td>
               <td class="cell-actions">
-                <button v-if="v.statusClass === 'yellow'" class="action-btn action-btn--green" title="Aprobar">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <button class="action-btn" title="Ver / revisar solicitud" @click="abrirRevisarVacacion(v)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button v-if="v.statusClass === 'yellow'" class="action-btn action-btn--red" title="Rechazar">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <button class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarVacacion(v)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+                <button class="action-btn" title="Descargar boleta" @click="exportarBoletaVacacion(v)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </button>
               </td>
+            </tr>
+            <tr v-if="vacacionesFiltradas.length === 0">
+              <td colspan="7" class="empty-row">Sin solicitudes de vacaciones.</td>
             </tr>
           </tbody>
         </table>
@@ -289,46 +379,95 @@
          TAB: PERMISOS
     ══════════════════════════════════════════ -->
     <template v-if="activeTab === 'permisos'">
-      <div class="section-header-row">
-        <h3 class="section-subtitle">Solicitudes de permisos</h3>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(permisos,[{key:'name',label:'Colaborador'},{key:'tipo',label:'Tipo'},{key:'fecha',label:'Fecha'},{key:'horas',label:'Horas'},{key:'status',label:'Estado'}],'permisos')">
+      <div class="vac-summary">
+        <div class="vac-saldo">
+          <span class="vac-num">{{ permisosStats.total }}</span>
+          <span class="vac-lbl">Solicitudes totales</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ permisosStats.horasAprobadas }}</span>
+          <span class="vac-lbl">Horas aprobadas</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ permisosStats.pendientes }}</span>
+          <span class="vac-lbl">Solicitudes pendientes</span>
+        </div>
+        <div class="export-group">
+          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(permisosFiltrados,[{key:'numeroSolicitud',label:'N° Solicitud'},{key:'name',label:'Colaborador'},{key:'tipoPermiso',label:'Tipo'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'status',label:'Estado'}],'permisos')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Permisos')">
+          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(permisosFiltrados,[{key:'numeroSolicitud',label:'N° Solicitud'},{key:'name',label:'Colaborador'},{key:'tipoPermiso',label:'Tipo'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'status',label:'Estado'}],'Permisos')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </button>
-          <button class="btn-primary" @click="openModal('permiso')">
+          <button class="btn-primary vac-btn" @click="abrirNuevoPermiso">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nuevo permiso
+            Nueva solicitud
           </button>
         </div>
       </div>
+
+      <div class="filters-bar">
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="permFiltroNumero" type="search" placeholder="N° de solicitud..." class="search-input" />
+        </div>
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="permFiltroNombre" type="search" placeholder="Nombre del colaborador..." class="search-input" />
+        </div>
+        <div class="filter-date"><DatePicker v-model="permFiltroFecha" placeholder="Fecha" /></div>
+        <select v-model="permFiltroEstado" class="filter-select">
+          <option value="">Todos los estados</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Aprobado">Aprobado</option>
+          <option value="Rechazado">Rechazado</option>
+          <option value="Cancelado">Cancelado</option>
+          <option value="Finalizado">Finalizado</option>
+        </select>
+      </div>
+
       <div class="data-card">
         <table class="data-table">
           <thead>
-            <tr><th>Colaborador</th><th>Tipo</th><th>Fecha</th><th>Horas</th><th>Estado</th><th></th></tr>
+            <tr>
+              <th>N° Solicitud</th>
+              <th>Colaborador</th>
+              <th>Tipo</th>
+              <th>Fecha inicio</th>
+              <th>Fecha fin</th>
+              <th>Duración</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="p in visiblePermisos" :key="p.id">
+            <tr v-for="p in permisosFiltrados" :key="p.id">
+              <td>{{ p.numeroSolicitud }}</td>
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: p.color }">{{ p.initials }}</div>
                   <span>{{ p.name }}</span>
                 </div>
               </td>
-              <td><span class="badge badge--blue">{{ p.tipo }}</span></td>
-              <td>{{ p.fecha }}</td>
-              <td>{{ p.horas }}h</td>
+              <td><span class="badge badge--blue">{{ p.tipoPermiso }}</span></td>
+              <td>{{ p.inicio }}</td>
+              <td>{{ p.fin }}</td>
+              <td>{{ p.horas != null ? p.horas + ' h' : (p.dias != null ? p.dias + ' día(s)' : '—') }}</td>
               <td><span class="badge" :class="`badge--${p.statusClass}`">{{ p.status }}</span></td>
               <td class="cell-actions">
-                <button v-if="p.statusClass === 'yellow'" class="action-btn action-btn--green" title="Aprobar">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <button class="action-btn" title="Ver / revisar solicitud" @click="abrirRevisarPermiso(p)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button v-if="p.statusClass === 'yellow'" class="action-btn action-btn--red" title="Rechazar">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <button class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarPermiso(p)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+                <button class="action-btn" title="Descargar boleta" @click="exportarBoletaPermiso(p)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </button>
               </td>
+            </tr>
+            <tr v-if="permisosFiltrados.length === 0">
+              <td colspan="8" class="empty-row">Sin solicitudes de permisos.</td>
             </tr>
           </tbody>
         </table>
@@ -342,92 +481,72 @@
       <div class="section-header-row">
         <div>
           <h3 class="section-subtitle">Gestión documental</h3>
-          <p class="section-desc">Documentos personales, laborales y académicos de los colaboradores</p>
+          <p class="section-desc">Repositorio de documentos de consulta a disposición de todo el personal. Los documentos personales de cada colaborador viven en su expediente.</p>
         </div>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(docGrupos.flatMap(g=>g.docs),[{key:'nombre',label:'Documento'},{key:'tipo',label:'Tipo'},{key:'fecha',label:'Fecha'},{key:'vencimiento',label:'Vencimiento'}],'documentos')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
-          </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Documentos')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-          </button>
-          <button class="btn-primary" @click="openModal('documento')">
+        <div class="header-actions" v-if="puedeGestionarDocInstitucional">
+          <button class="btn-primary" @click="abrirNuevoDocInstitucional">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Subir documento
           </button>
         </div>
       </div>
 
-      <div class="doc-filters">
-        <div class="search-wrap">
-          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar documento o colaborador..." class="search-input" />
+      <div class="doc-inst-layout">
+        <div class="doc-inst-categorias">
+          <button
+            v-for="cat in categoriasDocDisponibles" :key="cat"
+            type="button" class="doc-inst-cat-btn" :class="{ 'doc-inst-cat-btn--active': docCategoriaActiva === cat }"
+            @click="seleccionarCategoriaDoc(cat)"
+          >
+            {{ cat }}
+            <span class="doc-inst-cat-count">{{ documentosInstitucionales.filter(d => d.categoria === cat).length }}</span>
+          </button>
         </div>
-        <select class="filter-select">
-          <option value="">Todas las categorías</option>
-          <option>Personales</option>
-          <option>Laborales</option>
-          <option>Académicos</option>
-        </select>
-        <select class="filter-select">
-          <option value="">Todos los colaboradores</option>
-          <option v-for="e in employees" :key="e.id">{{ e.name }}</option>
-        </select>
-      </div>
 
-      <!-- Grupos por categoría -->
-      <div class="doc-groups">
-        <div v-for="grupo in visibleDocGrupos" :key="grupo.cat" class="doc-group">
-          <div class="doc-group-header">
-            <div class="doc-group-icon" :style="{ background: grupo.bg }">
-              <span v-html="grupo.icon"></span>
-            </div>
-            <span class="doc-group-title">{{ grupo.cat }}</span>
-            <span class="doc-group-count">{{ grupo.docs.length }} doc.</span>
+        <div class="doc-inst-content">
+          <div class="doc-inst-subtabs">
+            <button
+              v-for="sub in subcategoriasDocDisponibles" :key="sub"
+              type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': docSubcategoriaActiva === sub }"
+              @click="docSubcategoriaActiva = sub"
+            >{{ sub }} ({{ documentosInstitucionales.filter(d => d.categoria === docCategoriaActiva && d.subcategoria === sub).length }})</button>
           </div>
+
+          <div class="filters-bar">
+            <div class="search-wrap">
+              <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input v-model="docInstFiltroTexto" type="search" placeholder="Buscar por nombre o descripción..." class="search-input" />
+            </div>
+          </div>
+
           <div class="data-card">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Colaborador</th>
-                  <th>Tipo de documento</th>
-                  <th>Fecha de carga</th>
-                  <th>Vencimiento</th>
-                  <th>Estado</th>
-                  <th></th>
+                  <th>Documento</th>
+                  <th>Descripción</th>
+                  <th>Subido por</th>
+                  <th>Fecha</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="doc in grupo.docs" :key="doc.id">
-                  <td>
-                    <div class="cell-user">
-                      <div class="cell-avatar" :style="{ background: doc.color }">{{ doc.initials }}</div>
-                      <span>{{ doc.name }}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="doc-tipo">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      {{ doc.tipo }}
-                    </div>
-                  </td>
-                  <td>{{ doc.carga }}</td>
-                  <td>
-                    <span v-if="doc.vence" :class="doc.venceAlert ? 'doc-vence-alert' : 'doc-vence'">{{ doc.vence }}</span>
-                    <span v-else class="doc-vence-na">—</span>
-                  </td>
-                  <td><span class="badge" :class="`badge--${doc.statusClass}`">{{ doc.status }}</span></td>
+                <tr v-for="d in documentosInstFiltrados" :key="d.id">
+                  <td>{{ d.nombre }}</td>
+                  <td>{{ d.descripcion || '—' }}</td>
+                  <td>{{ d.subidoPor }}</td>
+                  <td>{{ new Date(d.fecha).toLocaleDateString('es-CR') }}</td>
                   <td class="cell-actions">
-                    <button class="action-btn" title="Descargar">
+                    <button class="action-btn" title="Abrir" @click="abrirDocumentoInstitucional(d)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     </button>
-                    <button class="action-btn" title="Ver">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                    <button class="action-btn action-btn--red" title="Eliminar">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    <button v-if="puedeGestionarDocInstitucional" class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarDocInstitucional(d)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                     </button>
                   </td>
+                </tr>
+                <tr v-if="!documentosInstFiltrados.length">
+                  <td colspan="5" class="empty-row">Sin documentos en esta subcategoría.</td>
                 </tr>
               </tbody>
             </table>
@@ -440,58 +559,55 @@
          TAB: ASISTENCIA
     ══════════════════════════════════════════ -->
     <template v-if="activeTab === 'asistencia'">
-      <div class="section-header-row">
-        <div>
-          <h3 class="section-subtitle">Control de asistencia</h3>
-          <p class="section-desc">Registro de entradas, salidas y horas trabajadas</p>
+      <div class="vac-summary">
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.presentes }}</span>
+          <span class="vac-lbl">Presentes</span>
         </div>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(asistencias,[{key:'name',label:'Colaborador'},{key:'fecha',label:'Fecha'},{key:'entrada',label:'Entrada'},{key:'salida',label:'Salida'},{key:'horas',label:'Horas'}],'asistencia')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.tardanzas }}</span>
+          <span class="vac-lbl">Tardanzas</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.ausentes }}</span>
+          <span class="vac-lbl">Ausentes</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ asistenciaStats.porJustificar }}</span>
+          <span class="vac-lbl">Por justificar</span>
+        </div>
+        <div class="export-group">
+          <button class="action-btn" title="Configuración de asistencia" @click="abrirConfiguracionAsistencia">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Asistencia')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+          <button v-if="asistConfig.modalidad !== 'marcacion_propia'" class="export-btn export-btn--excel" title="Descargar plantilla" @click="descargarPlantillaAsistencia">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
           </button>
-          <button class="btn-primary" @click="openModal('asistencia')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Registrar entrada/salida
+          <button v-if="asistConfig.modalidad !== 'marcacion_propia'" class="btn-primary vac-btn" @click="abrirCargaAsistencia">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Cargar asistencia
           </button>
-        </div>
-      </div>
-
-      <div class="asist-summary">
-        <div class="asist-stat">
-          <span class="asist-num">28</span>
-          <span class="asist-lbl">Presentes hoy</span>
-        </div>
-        <div class="asist-stat">
-          <span class="asist-num asist-num--red">2</span>
-          <span class="asist-lbl">Ausencias hoy</span>
-        </div>
-        <div class="asist-stat">
-          <span class="asist-num asist-num--yellow">3</span>
-          <span class="asist-lbl">Tardías este mes</span>
-        </div>
-        <div class="asist-stat">
-          <span class="asist-num asist-num--blue">42</span>
-          <span class="asist-lbl">Horas extra mes</span>
+          <button v-if="asistConfig.modalidad !== 'carga_masiva'" class="btn-primary vac-btn" @click="abrirMarcarAsistencia">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Marcar asistencia
+          </button>
         </div>
       </div>
 
       <div class="filters-bar">
+        <div class="filter-date"><DatePicker v-model="asistFiltroFecha" placeholder="Fecha" /></div>
+        <select v-model="asistFiltroDepto" class="filter-select">
+          <option value="">Todos los departamentos</option>
+          <option v-for="d in departamentos" :key="d.id" :value="d.nombre">{{ d.nombre }}</option>
+        </select>
         <div class="search-wrap">
           <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar colaborador..." class="search-input" />
+          <input v-model="asistFiltroNombre" type="search" placeholder="Nombre del colaborador..." class="search-input" />
         </div>
-        <select class="filter-select">
-          <option value="">Todos los colaboradores</option>
-          <option v-for="e in employees" :key="e.id">{{ e.name }}</option>
+        <select v-model="asistFiltroEstado" class="filter-select">
+          <option value="">Todos los estados</option>
+          <option v-for="e in ESTADOS_ASISTENCIA" :key="e" :value="e">{{ e }}</option>
         </select>
-        <div class="date-range">
-          <DatePicker model-value="2026-06-01" input-class="filter-select" />
-          <span class="date-sep">—</span>
-          <DatePicker model-value="2026-06-15" input-class="filter-select" />
-        </div>
       </div>
 
       <div class="data-card">
@@ -499,38 +615,37 @@
           <thead>
             <tr>
               <th>Colaborador</th>
-              <th>Fecha</th>
+              <th>Departamento</th>
               <th>Entrada</th>
               <th>Salida</th>
               <th>Horas trabajadas</th>
-              <th>Horas extra</th>
               <th>Estado</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="a in visibleAsistencias" :key="a.id">
+            <tr v-for="a in asistenciaFilasFiltradas" :key="a.empleadoId">
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: a.color }">{{ a.initials }}</div>
                   <span>{{ a.name }}</span>
                 </div>
               </td>
-              <td>{{ a.fecha }}</td>
+              <td>{{ a.dept }}</td>
               <td>
-                <span class="time-badge">{{ a.entrada }}</span>
+                <span class="time-badge" v-if="a.entrada">{{ a.entrada }}</span>
+                <span class="time-badge time-badge--pending" v-else>—</span>
               </td>
               <td>
                 <span class="time-badge" v-if="a.salida">{{ a.salida }}</span>
-                <span class="time-badge time-badge--pending" v-else>Pendiente</span>
+                <span class="time-badge time-badge--pending" v-else>—</span>
               </td>
               <td>
-                <span class="font-mono">{{ a.horas ? a.horas + 'h' : '—' }}</span>
+                <span class="font-mono">{{ a.horas != null ? a.horas + 'h' : '—' }}</span>
               </td>
-              <td>
-                <span v-if="a.extra" class="badge badge--blue">+{{ a.extra }}h</span>
-                <span v-else class="text-muted">—</span>
-              </td>
-              <td><span class="badge" :class="`badge--${a.statusClass}`">{{ a.status }}</span></td>
+              <td><span class="badge" :class="`badge--${a.estadoClass}`">{{ a.estado }}</span></td>
+            </tr>
+            <tr v-if="asistenciaFilasFiltradas.length === 0">
+              <td colspan="6" class="empty-row">No hay colaboradores para los filtros seleccionados.</td>
             </tr>
           </tbody>
         </table>
@@ -541,57 +656,94 @@
          TAB: INCAPACIDADES
     ══════════════════════════════════════════ -->
     <template v-if="activeTab === 'incapacidades'">
-      <div class="section-header-row">
-        <h3 class="section-subtitle">Registro de incapacidades</h3>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(incapacidades,[{key:'name',label:'Colaborador'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'dias',label:'Días'},{key:'institucion',label:'Institución'}],'incapacidades')">
+      <div class="vac-summary">
+        <div class="vac-saldo">
+          <span class="vac-num">{{ incapacidadesStats.total }}</span>
+          <span class="vac-lbl">Registros totales</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ incapacidadesStats.diasAcumulados }}</span>
+          <span class="vac-lbl">Días acumulados</span>
+        </div>
+        <div class="vac-saldo">
+          <span class="vac-num">{{ incapacidadesStats.activas }}</span>
+          <span class="vac-lbl">Activas</span>
+        </div>
+        <div class="export-group">
+          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(incapacidadesFiltradas,[{key:'numeroRegistro',label:'N° Registro'},{key:'name',label:'Colaborador'},{key:'tipoIncapacidad',label:'Tipo'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'dias',label:'Días'},{key:'status',label:'Estado'}],'incapacidades')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Incapacidades')">
+          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(incapacidadesFiltradas,[{key:'numeroRegistro',label:'N° Registro'},{key:'name',label:'Colaborador'},{key:'tipoIncapacidad',label:'Tipo'},{key:'inicio',label:'Inicio'},{key:'fin',label:'Fin'},{key:'dias',label:'Días'},{key:'status',label:'Estado'}],'Incapacidades')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </button>
-          <button class="btn-primary" @click="openModal('incapacidad')">
+          <button class="btn-primary vac-btn" @click="abrirNuevaIncapacidad">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nueva incapacidad
+            Registrar incapacidad
           </button>
         </div>
       </div>
+
+      <div class="filters-bar">
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="incFiltroNumero" type="search" placeholder="N° de registro..." class="search-input" />
+        </div>
+        <div class="search-wrap">
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="incFiltroNombre" type="search" placeholder="Nombre del colaborador..." class="search-input" />
+        </div>
+        <div class="filter-date"><DatePicker v-model="incFiltroFecha" placeholder="Fecha" /></div>
+        <select v-model="incFiltroEstado" class="filter-select">
+          <option value="">Todos los estados</option>
+          <option value="Registrada">Registrada</option>
+          <option value="Activa">Activa</option>
+          <option value="Finalizada">Finalizada</option>
+          <option value="Anulada">Anulada</option>
+        </select>
+      </div>
+
       <div class="data-card">
         <table class="data-table">
           <thead>
             <tr>
+              <th>N° Registro</th>
               <th>Colaborador</th>
+              <th>Tipo</th>
               <th>Fecha inicio</th>
               <th>Fecha fin</th>
               <th>Días</th>
-              <th>Institución emisora</th>
-              <th>Diagnóstico</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="inc in visibleIncapacidades" :key="inc.id">
+            <tr v-for="inc in incapacidadesFiltradas" :key="inc.id">
+              <td>{{ inc.numeroRegistro }}</td>
               <td>
                 <div class="cell-user">
                   <div class="cell-avatar" :style="{ background: inc.color }">{{ inc.initials }}</div>
                   <span>{{ inc.name }}</span>
                 </div>
               </td>
+              <td><span class="badge badge--blue">{{ inc.tipoIncapacidad || '—' }}</span></td>
               <td>{{ inc.inicio }}</td>
               <td>{{ inc.fin }}</td>
               <td>{{ inc.dias }}</td>
-              <td>{{ inc.institucion }}</td>
-              <td><span class="text-muted-sm">{{ inc.diagnostico || '—' }}</span></td>
               <td><span class="badge" :class="`badge--${inc.statusClass}`">{{ inc.status }}</span></td>
               <td class="cell-actions">
-                <button class="action-btn" title="Ver documento">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-                <button class="action-btn" title="Editar">
+                <button class="action-btn" title="Ver / editar registro" @click="abrirRevisarIncapacidad(inc)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
+                <button class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarIncapacidad(inc)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+                <button class="action-btn" title="Descargar boleta" @click="exportarBoletaIncapacidad(inc)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
               </td>
+            </tr>
+            <tr v-if="incapacidadesFiltradas.length === 0">
+              <td colspan="8" class="empty-row">Sin incapacidades registradas.</td>
             </tr>
           </tbody>
         </table>
@@ -608,13 +760,13 @@
           <p class="section-desc">Gestión del plan de capacitación y registro de participación</p>
         </div>
         <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(capacitaciones,[{key:'tema',label:'Tema'},{key:'modalidad',label:'Modalidad'},{key:'fecha',label:'Fecha'},{key:'instructor',label:'Instructor'},{key:'asistentes',label:'Asistentes'}],'capacitaciones')">
+          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportExcel(capacitacionesFiltradas,[{key:'nombre',label:'Tema'},{key:'categoria',label:'Categoría'},{key:'modalidad',label:'Modalidad'},{key:'fecha',label:'Fecha'},{key:'instructor',label:'Instructor'},{key:'asistentes',label:'Asistentes'},{key:'status',label:'Estado'}],'capacitaciones')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Capacitaciones')">
+          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF(capacitacionesFiltradas,[{key:'nombre',label:'Tema'},{key:'categoria',label:'Categoría'},{key:'modalidad',label:'Modalidad'},{key:'fecha',label:'Fecha'},{key:'instructor',label:'Instructor'},{key:'asistentes',label:'Asistentes'},{key:'status',label:'Estado'}],'Capacitaciones')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </button>
-          <button class="btn-primary" @click="openModal('capacitacion')">
+          <button class="btn-primary" @click="abrirNuevaCapacitacion">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Nueva capacitación
           </button>
@@ -623,41 +775,41 @@
 
       <div class="cap-summary">
         <div class="cap-stat">
-          <span class="cap-num">12</span>
+          <span class="cap-num">{{ capacitacionesStats.finalizadas }}</span>
           <span class="cap-lbl">Total realizadas</span>
         </div>
         <div class="cap-stat">
-          <span class="cap-num cap-num--blue">3</span>
+          <span class="cap-num cap-num--blue">{{ capacitacionesStats.programadas }}</span>
           <span class="cap-lbl">Programadas</span>
         </div>
         <div class="cap-stat">
-          <span class="cap-num cap-num--green">248</span>
+          <span class="cap-num cap-num--green">{{ capacitacionesStats.horas }}</span>
           <span class="cap-lbl">Horas acumuladas</span>
         </div>
         <div class="cap-stat">
-          <span class="cap-num cap-num--teal">18</span>
-          <span class="cap-lbl">Certificaciones vigentes</span>
+          <span class="cap-num cap-num--teal">{{ capacitacionesStats.asistentes }}</span>
+          <span class="cap-lbl">Asistentes totales</span>
         </div>
       </div>
 
       <div class="filters-bar">
         <div class="search-wrap">
           <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar por tema o instructor..." class="search-input" />
+          <input v-model="capFiltroTexto" type="search" placeholder="Buscar por tema o instructor..." class="search-input" />
         </div>
-        <select class="filter-select">
+        <select v-model="capFiltroCategoriaId" class="filter-select">
           <option value="">Todas las categorías</option>
-          <option>Tecnología</option>
-          <option>Finanzas</option>
-          <option>Liderazgo</option>
-          <option>Normativa</option>
-          <option>Otro</option>
+          <option v-for="c in categoriasCapacitacion" :key="c.id" :value="c.id">{{ c.nombre }}</option>
         </select>
-        <select class="filter-select">
+        <select v-model="capFiltroModalidadId" class="filter-select">
+          <option value="">Todas las modalidades</option>
+          <option v-for="m in modalidadesCapacitacion" :key="m.id" :value="m.id">{{ m.nombre }}</option>
+        </select>
+        <select v-model="capFiltroEstado" class="filter-select">
           <option value="">Todos los estados</option>
-          <option>Programada</option>
-          <option>En curso</option>
-          <option>Finalizada</option>
+          <option value="Programada">Programada</option>
+          <option value="En curso">En curso</option>
+          <option value="Finalizada">Finalizada</option>
         </select>
       </div>
 
@@ -673,20 +825,20 @@
               <th>Instructor</th>
               <th>Asistentes</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="cap in visibleCapacitaciones" :key="cap.id">
+            <tr v-for="cap in capacitacionesFiltradas" :key="cap.id">
               <td>
                 <div class="cap-nombre">
                   <span class="cap-titulo">{{ cap.nombre }}</span>
-                  <span class="cap-depto">{{ cap.depto }}</span>
+                  <span class="cap-depto">{{ cap.deptoLabel }}</span>
                 </div>
               </td>
-              <td><span class="badge badge--blue">{{ cap.categoria }}</span></td>
+              <td><span class="badge badge--blue">{{ cap.categoria || '—' }}</span></td>
               <td>
-                <span class="modalidad-badge" :class="`modalidad--${cap.modalidadClass}`">{{ cap.modalidad }}</span>
+                <span class="modalidad-badge" :class="`modalidad--${cap.modalidadClass}`">{{ cap.modalidad || '—' }}</span>
               </td>
               <td>{{ cap.fecha }}</td>
               <td>{{ cap.horas }}h</td>
@@ -699,13 +851,19 @@
               </td>
               <td><span class="badge" :class="`badge--${cap.statusClass}`">{{ cap.status }}</span></td>
               <td class="cell-actions">
-                <button class="action-btn" title="Ver detalle">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <button class="action-btn" title="Gestionar asistentes" @click="abrirAsistentesCapacitacion(cap)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </button>
-                <button class="action-btn" title="Editar">
+                <button class="action-btn" title="Editar" @click="abrirEditarCapacitacion(cap)">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
+                <button class="action-btn action-btn--red" title="Eliminar" @click="confirmarEliminarCapacitacion(cap)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
               </td>
+            </tr>
+            <tr v-if="capacitacionesFiltradas.length === 0">
+              <td colspan="9" class="empty-row">Sin capacitaciones registradas.</td>
             </tr>
           </tbody>
         </table>
@@ -716,97 +874,7 @@
          TAB: EVALUACIONES
     ══════════════════════════════════════════ -->
     <template v-if="activeTab === 'evaluaciones'">
-      <div class="section-header-row">
-        <div>
-          <h3 class="section-subtitle">Evaluación de desempeño</h3>
-          <p class="section-desc">Evaluaciones periódicas por competencias y objetivos</p>
-        </div>
-        <div class="header-actions">
-          <button class="export-btn export-btn--excel" title="Exportar a Excel" @click="exportCSV(evaluaciones,[{key:'name',label:'Colaborador'},{key:'periodo',label:'Período'},{key:'calificacion',label:'Calificación'},{key:'evaluador',label:'Evaluador'}],'evaluaciones')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
-          </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Evaluaciones')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-          </button>
-          <button class="btn-primary" @click="openModal('evaluacion')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nueva evaluación
-          </button>
-        </div>
-      </div>
-
-      <div class="filters-bar">
-        <div class="search-wrap">
-          <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="search" placeholder="Buscar colaborador..." class="search-input" />
-        </div>
-        <select class="filter-select">
-          <option value="">Todos los períodos</option>
-          <option>Trimestral</option>
-          <option>Semestral</option>
-          <option>Anual</option>
-        </select>
-        <select class="filter-select">
-          <option value="">Todos los tipos</option>
-          <option>Autoevaluación</option>
-          <option>Jefatura</option>
-          <option>180°</option>
-          <option>360°</option>
-        </select>
-        <select class="filter-select">
-          <option value="">Todos los estados</option>
-          <option>Pendiente</option>
-          <option>En proceso</option>
-          <option>Completada</option>
-        </select>
-      </div>
-
-      <div class="data-card">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Colaborador</th>
-              <th>Período</th>
-              <th>Tipo</th>
-              <th>Evaluador</th>
-              <th>Fecha</th>
-              <th>Calificación</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="ev in visibleEvaluaciones" :key="ev.id">
-              <td>
-                <div class="cell-user">
-                  <div class="cell-avatar" :style="{ background: ev.color }">{{ ev.initials }}</div>
-                  <span>{{ ev.name }}</span>
-                </div>
-              </td>
-              <td>{{ ev.periodo }}</td>
-              <td><span class="badge badge--blue">{{ ev.tipo }}</span></td>
-              <td>{{ ev.evaluador }}</td>
-              <td>{{ ev.fecha }}</td>
-              <td>
-                <div v-if="ev.calificacion" class="calificacion-cell">
-                  <span class="calificacion-num" :class="`cal--${ev.calClass}`">{{ ev.calificacion }}</span>
-                  <span class="calificacion-max">/100</span>
-                </div>
-                <span v-else class="text-muted">Pendiente</span>
-              </td>
-              <td><span class="badge" :class="`badge--${ev.statusClass}`">{{ ev.status }}</span></td>
-              <td class="cell-actions">
-                <button class="action-btn" title="Ver evaluación">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-                <button class="action-btn" title="Completar evaluación" @click="openModal('evaluacion')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <EvaluacionesPanel />
     </template>
 
     <!-- ══════════════════════════════════════════
@@ -814,267 +882,1056 @@
     ══════════════════════════════════════════ -->
     <Transition name="modal-fade">
       <div v-if="modal.open" class="modal-backdrop" @click.self="modal.open = false">
-        <div class="modal-box">
+        <div class="modal-box" :class="{ 'modal-box--expediente': modal.type === 'nuevo' || modal.type === 'editar' || modal.type === 'capacitacion' }">
           <button class="modal-close" @click="modal.open = false">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
 
-          <!-- Nuevo / Editar colaborador -->
+          <!-- Nuevo / Editar colaborador: expediente en pestañas -->
           <template v-if="modal.type === 'nuevo' || modal.type === 'editar'">
             <h3 class="modal-title">{{ modal.type === 'nuevo' ? 'Agregar colaborador' : 'Editar colaborador' }}</h3>
-            <p class="modal-subtitle">Información personal y laboral</p>
-            <form class="modal-form" @submit.prevent="guardarEmpleado">
-              <div class="form-section-title">Datos personales</div>
-              <div class="form-row">
-                <div class="form-field"><label>Nombre completo <span class="req">*</span></label><input v-model="empForm.nombre" type="text" placeholder="Ana Vargas Mora" required /></div>
-                <div class="form-field"><label>Identificación <span class="req">*</span></label><input v-model="empForm.identificacion" type="text" placeholder="1-2345-6789" required /></div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha de nacimiento</label><DatePicker v-model="empForm.fechaNacimiento" /></div>
-                <div class="form-field"><label>Género</label>
-                  <select v-model="empForm.genero"><option>Femenino</option><option>Masculino</option><option>Otro</option></select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Teléfono</label><input v-model="empForm.telefono" type="tel" placeholder="8888-9999" /></div>
-                <div class="form-field"><label>Correo electrónico</label><input v-model="empForm.correo" type="email" placeholder="correo@cooperativa.com" /></div>
-              </div>
-              <div class="form-field form-field--full"><label>Dirección</label><input v-model="empForm.direccion" type="text" placeholder="Provincia, Cantón, Distrito" /></div>
+            <p class="modal-subtitle">{{ modal.data ? nombreCompleto(modal.data) : 'Expediente del colaborador' }}</p>
 
-              <div class="form-section-title" style="margin-top:18px">Datos laborales</div>
-              <div class="form-row">
-                <div class="form-field"><label>Puesto <span class="req">*</span></label><input v-model="empForm.puesto" type="text" placeholder="Gerente, Contador..." required /></div>
-                <div class="form-field"><label>Departamento <span class="req">*</span></label>
-                  <select v-model="empForm.departamento" required><option value="">Seleccionar</option><option>Administración</option><option>Operaciones</option><option>Finanzas</option></select>
+            <div class="exp-modal-layout">
+              <div class="exp-tab-list">
+                <button
+                  v-for="t in EXPEDIENTE_TABS" :key="t.key" type="button"
+                  class="exp-tab-item"
+                  :class="{ 'exp-tab-item--active': expedienteTab === t.key, 'exp-tab-item--disabled': t.requiresSaved && !modal.data?.id }"
+                  @click="selectExpedienteTab(t)"
+                >{{ t.label }}</button>
+              </div>
+
+              <div class="exp-tab-content">
+                <div v-if="expedienteTabLocked" class="exp-empty">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#C5D5E5" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <p>Guarda primero la información personal y laboral para habilitar esta sección.</p>
+                </div>
+
+                <!-- Información personal -->
+                <form v-else-if="expedienteTab === 'personal'" class="modal-form" @submit.prevent="guardarEmpleado">
+                  <div class="form-row">
+                    <div class="form-field"><label>Nombre(s) <span class="req">*</span></label><input v-model="empForm.nombre" type="text" placeholder="Ana" required /></div>
+                    <div class="form-field"><label>Primer apellido</label><input v-model="empForm.primerApellido" type="text" placeholder="Vargas" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Segundo apellido</label><input v-model="empForm.segundoApellido" type="text" placeholder="Mora" /></div>
+                    <div class="form-field"><label>Tipo de identificación</label>
+                      <select v-model="empForm.tipoIdentificacion"><option>Cédula nacional</option><option>DIMEX</option><option>Pasaporte</option><option>Otro</option></select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Identificación <span class="req">*</span></label><input v-model="empForm.identificacion" type="text" placeholder="1-2345-6789" required /></div>
+                    <div class="form-field"><label>Fecha de nacimiento</label><DatePicker v-model="empForm.fechaNacimiento" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Nacionalidad</label><input v-model="empForm.nacionalidad" type="text" placeholder="Costarricense" /></div>
+                    <div class="form-field"><label>Sexo</label>
+                      <select v-model="empForm.genero"><option>Femenino</option><option>Masculino</option><option>Otro</option></select>
+                    </div>
+                  </div>
+                  <div class="form-field"><label>Estado civil</label>
+                    <select v-model="empForm.estadoCivil"><option value="">Seleccionar</option><option>Soltero/a</option><option>Casado/a</option><option>Divorciado/a</option><option>Viudo/a</option><option>Unión libre</option></select>
+                  </div>
+
+                  <div class="form-section-title" style="margin-top:8px">Contacto</div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Teléfono principal</label><input v-model="empForm.telefono" type="tel" placeholder="8888-9999" /></div>
+                    <div class="form-field"><label>Teléfono secundario</label><input v-model="empForm.telefonoSecundario" type="tel" placeholder="8888-9999" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Correo personal</label><input v-model="empForm.correoPersonal" type="email" placeholder="ana@correo.com" /></div>
+                    <div class="form-field"><label>Correo institucional</label><input v-model="empForm.correoInstitucional" type="email" placeholder="ana@cooperativa.com" /></div>
+                  </div>
+
+                  <div class="form-section-title" style="margin-top:8px">Dirección</div>
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label>Provincia</label>
+                      <select v-model="empForm.provincia" @change="empForm.canton = ''; empForm.distrito = ''">
+                        <option value="">Seleccionar</option>
+                        <option v-for="p in PROVINCIAS_CR" :key="p" :value="p">{{ p }}</option>
+                      </select>
+                    </div>
+                    <div class="form-field">
+                      <label>Cantón</label>
+                      <select v-model="empForm.canton" :disabled="!empForm.provincia" @change="empForm.distrito = ''">
+                        <option value="">Seleccionar</option>
+                        <option v-for="c in empCantonesDisponibles" :key="c" :value="c">{{ c }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label>Distrito</label>
+                      <select v-model="empForm.distrito" :disabled="!empForm.canton">
+                        <option value="">Seleccionar</option>
+                        <option v-for="d in empDistritosDisponibles" :key="d" :value="d">{{ d }}</option>
+                      </select>
+                    </div>
+                    <div class="form-field"><label>Dirección exacta</label><input v-model="empForm.direccionExacta" type="text" placeholder="100m norte de..." /></div>
+                  </div>
+
+                  <div v-if="empFormError" class="req" style="font-size:12.5px;">{{ empFormError }}</div>
+                  <div class="modal-actions">
+                    <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                    <button type="submit" class="btn-primary" :disabled="empFormSaving">Guardar información personal</button>
+                  </div>
+                </form>
+
+                <!-- Información laboral -->
+                <form v-else-if="expedienteTab === 'laboral'" class="modal-form" @submit.prevent="guardarEmpleado">
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label>Puesto <span class="req">*</span></label>
+                      <input v-model="empForm.puesto" type="text" list="cargo-options" placeholder="Gerente, Contador..." required />
+                      <datalist id="cargo-options"><option v-for="c in cargos" :key="c.id" :value="c.nombre" /></datalist>
+                    </div>
+                    <div class="form-field">
+                      <label>Departamento <span class="req">*</span></label>
+                      <select v-model="empForm.departamentoId" required>
+                        <option value="">Seleccionar</option>
+                        <option v-for="d in departamentos" :key="d.id" :value="d.id">{{ d.nombre }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Código interno</label><input v-model="empForm.codigoInterno" type="text" placeholder="EMP-001" /></div>
+                    <div class="form-field"><label>Jefatura inmediata</label>
+                      <select v-model="empForm.jefeInmediatoId"><option value="">Sin jefatura</option><option v-for="j in jefeOptions" :key="j.id" :value="j.id">{{ j.name }}</option></select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Sede</label>
+                      <select v-model="empForm.sedeId"><option value="">Seleccionar</option><option v-for="s in sedes" :key="s.id" :value="s.id">{{ s.nombre }}</option></select>
+                    </div>
+                    <div class="form-field"><label>Fecha de ingreso</label><DatePicker v-model="empForm.fechaIngreso" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Tipo de contratación</label>
+                      <select v-model="empForm.tipoContrato"><option>Tiempo completo</option><option>Tiempo parcial</option><option>Por servicios</option></select>
+                    </div>
+                    <div class="form-field"><label>Jornada laboral</label>
+                      <select v-model="empForm.jornadaId"><option value="">Seleccionar</option><option v-for="j in jornadas" :key="j.id" :value="j.id">{{ j.nombre }}</option></select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Horario</label>
+                      <select v-model="empForm.horarioId"><option value="">Seleccionar</option><option v-for="h in horarios" :key="h.id" :value="h.id">{{ h.nombre }}</option></select>
+                    </div>
+                    <div class="form-field"><label>Estado</label>
+                      <select v-model="empForm.activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Salario base (₡)</label><input v-model="empForm.salario" type="number" placeholder="500000" /></div>
+                    <div class="form-field"><label>Moneda</label>
+                      <select v-model="empForm.moneda"><option>CRC</option><option>USD</option></select>
+                    </div>
+                  </div>
+                  <div class="form-field"><label>Forma de pago</label>
+                    <select v-model="empForm.formaPago"><option value="">Seleccionar</option><option>Depósito bancario</option><option>Efectivo</option><option>Cheque</option></select>
+                  </div>
+
+                  <div class="form-section-title" style="margin-top:8px">Acceso al sistema</div>
+                  <div class="form-field">
+                    <label>Usuario del sistema</label>
+                    <select v-model="empForm.profileId">
+                      <option value="">Sin usuario vinculado</option>
+                      <option v-for="p in profilesDisponibles" :key="p.id" :value="p.id">{{ p.full_name || p.email }}</option>
+                    </select>
+                    <p class="exp-hint">Vincula este colaborador con su cuenta de acceso para que pueda marcar su propia asistencia. Solo aparecen usuarios que aún no están vinculados a otro colaborador.</p>
+
+                    <button v-if="!mostrarInvitarUsuario" type="button" class="exp-link-btn" @click="mostrarInvitarUsuario = true">+ Invitar nuevo usuario para este colaborador</button>
+                    <div v-else class="exp-invitar-box">
+                      <div class="form-row">
+                        <input v-model="invitarEmail" type="email" placeholder="correo@ejemplo.com" />
+                        <button type="button" class="btn-outline" :disabled="invitarEnviando" @click="enviarInvitacionDesdeExpediente">
+                          {{ invitarEnviando ? 'Generando...' : 'Generar enlace' }}
+                        </button>
+                      </div>
+                      <div v-if="invitarError" class="req" style="font-size:12px;">{{ invitarError }}</div>
+                      <div v-if="invitarEnlace" class="usr-link-row">
+                        <input :value="invitarEnlace" readonly @click="$event.target.select()" />
+                        <button type="button" class="action-btn" title="Copiar" @click="copiarEnlaceInvitacion">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="empFormError" class="req" style="font-size:12.5px;">{{ empFormError }}</div>
+                  <div class="modal-actions">
+                    <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                    <button type="submit" class="btn-primary" :disabled="empFormSaving">Guardar información laboral</button>
+                  </div>
+                </form>
+
+                <!-- Contactos de emergencia -->
+                <div v-else-if="expedienteTab === 'contactos'" class="exp-subsection">
+                  <ul class="exp-mini-list">
+                    <li v-if="!contactos.length" class="exp-mini-empty">Sin contactos registrados</li>
+                    <li v-for="c in contactos" :key="c.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ c.nombre_completo }}</strong> <span v-if="c.es_principal" class="badge badge--green">Principal</span>
+                        <div class="exp-mini-sub">{{ c.parentesco }} · {{ c.telefono_principal }}<span v-if="c.telefono_secundario"> / {{ c.telefono_secundario }}</span></div>
+                      </div>
+                      <button type="button" class="action-btn" title="Quitar" @click="quitarContacto(c.id)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </li>
+                  </ul>
+                  <div class="form-section-title">Agregar contacto</div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Nombre completo <span class="req">*</span></label><input v-model="nuevoContacto.nombre_completo" type="text" /></div>
+                    <div class="form-field"><label>Parentesco</label><input v-model="nuevoContacto.parentesco" type="text" placeholder="Padre, Madre, Cónyuge..." /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Teléfono principal</label><input v-model="nuevoContacto.telefono_principal" type="tel" /></div>
+                    <div class="form-field"><label>Teléfono secundario</label><input v-model="nuevoContacto.telefono_secundario" type="tel" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Correo</label><input v-model="nuevoContacto.correo" type="email" /></div>
+                    <div class="form-field checkbox-inline"><label><input v-model="nuevoContacto.es_principal" type="checkbox" /> Contacto principal</label></div>
+                  </div>
+                  <div class="form-field"><label>Observaciones</label><textarea v-model="nuevoContacto.observaciones" rows="2"></textarea></div>
+                  <div v-if="contactoError" class="req" style="font-size:12.5px;">{{ contactoError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarContacto">Agregar contacto</button></div>
+                </div>
+
+                <!-- Contratos -->
+                <div v-else-if="expedienteTab === 'contratos'" class="exp-subsection">
+                  <ul class="exp-mini-list">
+                    <li v-if="!contratos.length" class="exp-mini-empty">Sin contratos registrados</li>
+                    <li v-for="c in contratos" :key="c.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ c.numero_contrato || 'Sin número' }}</strong> <span class="badge badge--blue">{{ c.estado_contrato }}</span>
+                        <div class="exp-mini-sub">Desde {{ c.fecha_inicio }}<span v-if="c.fecha_fin"> hasta {{ c.fecha_fin }}</span> · ₡{{ c.salario_pactado || 0 }}</div>
+                      </div>
+                    </li>
+                  </ul>
+                  <div class="form-section-title">Registrar contrato</div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Tipo de contratación</label>
+                      <select v-model="nuevoContrato.tipo_contrato_id"><option value="">Seleccionar</option><option v-for="t in tiposContratacion" :key="t.id" :value="t.id">{{ t.nombre }}</option></select>
+                    </div>
+                    <div class="form-field"><label>Número de contrato</label><input v-model="nuevoContrato.numero_contrato" type="text" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Fecha de inicio <span class="req">*</span></label><DatePicker v-model="nuevoContrato.fecha_inicio" /></div>
+                    <div class="form-field"><label>Fecha de finalización</label><DatePicker v-model="nuevoContrato.fecha_fin" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Salario pactado (₡)</label><input v-model="nuevoContrato.salario_pactado" type="number" /></div>
+                    <div class="form-field"><label>Estado del contrato</label>
+                      <select v-model="nuevoContrato.estado_contrato"><option value="vigente">Vigente</option><option value="finalizado">Finalizado</option><option value="rescindido">Rescindido</option></select>
+                    </div>
+                  </div>
+                  <div class="form-field checkbox-inline"><label><input v-model="nuevoContrato.periodo_prueba" type="checkbox" /> En período de prueba</label></div>
+                  <div class="form-field"><label>Observaciones</label><textarea v-model="nuevoContrato.observaciones" rows="2"></textarea></div>
+                  <div v-if="contratoError" class="req" style="font-size:12.5px;">{{ contratoError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarContrato">Registrar contrato</button></div>
+                  <p class="exp-hint">El historial de contratos no se sobrescribe: cada cambio queda como un registro nuevo.</p>
+                </div>
+
+                <!-- Formación académica -->
+                <div v-else-if="expedienteTab === 'academica'" class="exp-subsection">
+                  <h4 class="exp-subtitle">Formación académica</h4>
+                  <ul class="exp-mini-list">
+                    <li v-if="!formacionAcademica.length" class="exp-mini-empty">Sin estudios registrados</li>
+                    <li v-for="f in formacionAcademica" :key="f.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ f.titulo_obtenido || f.nivel_academico }}</strong>
+                        <div class="exp-mini-sub">
+                          {{ f.nivel_academico }}<span v-if="f.profesion"> · {{ f.profesion }}</span><span v-if="f.fecha_graduacion"> · {{ f.fecha_graduacion }}</span>
+                          <span v-if="f.documentos_empleado"> · <a href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(f.documentos_empleado.storage_path)">📎 {{ f.documentos_empleado.nombre }}</a></span>
+                        </div>
+                      </div>
+                      <button type="button" class="action-btn" title="Quitar" @click="quitarFormacionAcademica(f.id)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </li>
+                  </ul>
+                  <div class="form-row">
+                    <div class="form-field"><label>Nivel académico</label>
+                      <select v-model="nuevaFormacion.nivel_academico"><option value="">Seleccionar</option><option v-for="n in NIVELES_ACADEMICOS" :key="n">{{ n }}</option></select>
+                    </div>
+                    <div class="form-field">
+                      <label>Institución educativa</label>
+                      <input v-model="nuevaFormacion.institucionEducativa" type="text" list="institucion-options" placeholder="Universidad de Costa Rica..." />
+                      <datalist id="institucion-options"><option v-for="i in institucionesEducativas" :key="i.id" :value="i.nombre" /></datalist>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Profesión</label><input v-model="nuevaFormacion.profesion" type="text" /></div>
+                    <div class="form-field"><label>Especialidad</label><input v-model="nuevaFormacion.especialidad" type="text" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Título obtenido</label><input v-model="nuevaFormacion.titulo_obtenido" type="text" /></div>
+                    <div class="form-field"><label>Fecha de graduación</label><DatePicker v-model="nuevaFormacion.fecha_graduacion" /></div>
+                  </div>
+                  <div class="form-field"><label>Documento (título, diploma...)</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onFormacionArchivoChange" /></div>
+                  <div v-if="formacionError" class="req" style="font-size:12.5px;">{{ formacionError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarFormacionAcademica">Agregar estudio</button></div>
+
+                  <h4 class="exp-subtitle" style="margin-top:18px">Colegiatura profesional</h4>
+                  <ul class="exp-mini-list">
+                    <li v-if="!colegiaturas.length" class="exp-mini-empty">Sin colegiaturas registradas</li>
+                    <li v-for="c in colegiaturas" :key="c.id" class="exp-mini-item">
+                      <div>
+                        <strong>N° {{ c.numero_colegiado || '—' }}</strong> <span class="badge badge--blue">{{ c.estado }}</span>
+                        <div class="exp-mini-sub" v-if="c.fecha_vencimiento">Vence {{ c.fecha_vencimiento }}</div>
+                      </div>
+                      <button type="button" class="action-btn" title="Quitar" @click="quitarColegiatura(c.id)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </li>
+                  </ul>
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label>Colegio profesional</label>
+                      <input v-model="nuevaColegiatura.colegioProfesional" type="text" list="colegio-options" placeholder="Colegio de Contadores..." />
+                      <datalist id="colegio-options"><option v-for="c in colegiosProfesionales" :key="c.id" :value="c.nombre" /></datalist>
+                    </div>
+                    <div class="form-field"><label>Número de colegiado</label><input v-model="nuevaColegiatura.numero_colegiado" type="text" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Fecha de incorporación</label><DatePicker v-model="nuevaColegiatura.fecha_incorporacion" /></div>
+                    <div class="form-field"><label>Fecha de vencimiento</label><DatePicker v-model="nuevaColegiatura.fecha_vencimiento" /></div>
+                  </div>
+                  <div v-if="colegiaturaError" class="req" style="font-size:12.5px;">{{ colegiaturaError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarColegiatura">Agregar colegiatura</button></div>
+                </div>
+
+                <!-- Certificaciones y cursos -->
+                <div v-else-if="expedienteTab === 'certificaciones'" class="exp-subsection">
+                  <h4 class="exp-subtitle">Certificaciones</h4>
+                  <ul class="exp-mini-list">
+                    <li v-if="!certificacionesProfesionales.length" class="exp-mini-empty">Sin certificaciones registradas</li>
+                    <li v-for="c in certificacionesProfesionales" :key="c.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ c.nombre }}</strong> <span class="badge badge--blue">{{ c.estado }}</span>
+                        <div class="exp-mini-sub">
+                          {{ c.institucion_certificadora }}<span v-if="c.fecha_vencimiento"> · Vence {{ c.fecha_vencimiento }}</span>
+                          <span v-if="c.documentos_empleado"> · <a href="#" class="exp-doc-link" @click.prevent="abrirDocumentoAdjunto(c.documentos_empleado.storage_path)">📎 {{ c.documentos_empleado.nombre }}</a></span>
+                        </div>
+                      </div>
+                      <button type="button" class="action-btn" title="Quitar" @click="quitarCertificacion(c.id)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </li>
+                  </ul>
+                  <div class="form-row">
+                    <div class="form-field"><label>Nombre de certificación</label><input v-model="nuevaCertificacion.nombre" type="text" /></div>
+                    <div class="form-field"><label>Institución certificadora</label><input v-model="nuevaCertificacion.institucion_certificadora" type="text" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Fecha de emisión</label><DatePicker v-model="nuevaCertificacion.fecha_emision" /></div>
+                    <div class="form-field"><label>Fecha de vencimiento</label><DatePicker v-model="nuevaCertificacion.fecha_vencimiento" /></div>
+                  </div>
+                  <div class="form-field"><label>Documento (certificado firmado)</label><input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onCertificacionArchivoChange" /></div>
+                  <div v-if="certificacionError" class="req" style="font-size:12.5px;">{{ certificacionError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarCertificacion">Agregar certificación</button></div>
+
+                  <h4 class="exp-subtitle" style="margin-top:18px">Cursos y capacitaciones externas</h4>
+                  <ul class="exp-mini-list">
+                    <li v-if="!cursosColaborador.length" class="exp-mini-empty">Sin cursos registrados</li>
+                    <li v-for="c in cursosColaborador" :key="c.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ c.nombre_curso }}</strong>
+                        <div class="exp-mini-sub">{{ c.institucion }}<span v-if="c.duracion_horas"> · {{ c.duracion_horas }}h</span> · {{ c.modalidad }}</div>
+                      </div>
+                      <button type="button" class="action-btn" title="Quitar" @click="quitarCurso(c.id)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </li>
+                  </ul>
+                  <div class="form-row">
+                    <div class="form-field"><label>Nombre del curso</label><input v-model="nuevoCurso.nombre_curso" type="text" /></div>
+                    <div class="form-field"><label>Institución</label><input v-model="nuevoCurso.institucion" type="text" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Fecha</label><DatePicker v-model="nuevoCurso.fecha" /></div>
+                    <div class="form-field"><label>Duración (horas)</label><input v-model="nuevoCurso.duracion_horas" type="number" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Modalidad</label>
+                      <select v-model="nuevoCurso.modalidad"><option>Presencial</option><option>Virtual</option><option>Mixta</option></select>
+                    </div>
+                    <div class="form-field checkbox-inline"><label><input v-model="nuevoCurso.tiene_certificado" type="checkbox" /> Tiene certificado</label></div>
+                  </div>
+                  <div v-if="cursoError" class="req" style="font-size:12.5px;">{{ cursoError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarCurso">Agregar curso</button></div>
+                </div>
+
+                <!-- Información bancaria -->
+                <div v-else-if="expedienteTab === 'bancaria'" class="exp-subsection">
+                  <p v-if="bancariosSinAcceso" class="exp-hint">No tienes acceso a esta información. Solo el administrador puede ver y editar datos bancarios.</p>
+                  <template v-else>
+                    <div class="form-row">
+                      <div class="form-field"><label>Banco</label><input v-model="bancariosForm.banco" type="text" /></div>
+                      <div class="form-field"><label>Tipo de cuenta</label>
+                        <select v-model="bancariosForm.tipo_cuenta"><option value="">Seleccionar</option><option>Ahorro</option><option>Corriente</option></select>
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-field"><label>Número de cuenta</label><input v-model="bancariosForm.numero_cuenta" type="text" /></div>
+                      <div class="form-field"><label>IBAN</label><input v-model="bancariosForm.iban" type="text" placeholder="CR..." /></div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-field"><label>Moneda</label>
+                        <select v-model="bancariosForm.moneda"><option>CRC</option><option>USD</option></select>
+                      </div>
+                      <div class="form-field"><label>Estado</label>
+                        <select v-model="bancariosForm.estado"><option value="activa">Activa</option><option value="inactiva">Inactiva</option></select>
+                      </div>
+                    </div>
+                    <div v-if="bancariosError" class="req" style="font-size:12.5px;">{{ bancariosError }}</div>
+                    <div class="modal-actions"><button type="button" class="btn-primary" :disabled="bancariosSaving" @click="guardarBancarios">Guardar información bancaria</button></div>
+                  </template>
+                </div>
+
+                <!-- Pendientes para la fase 3 -->
+                <!-- Documentos -->
+                <div v-else-if="expedienteTab === 'documentos'" class="exp-subsection">
+                  <ul class="exp-mini-list">
+                    <li v-if="!documentos.length" class="exp-mini-empty">Sin documentos registrados</li>
+                    <li v-for="d in documentos" :key="d.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ d.nombre }}</strong>
+                        <span class="badge" :class="`badge--${vencimientoInfo(d.fecha_vencimiento).color}`">{{ vencimientoInfo(d.fecha_vencimiento).label }}</span>
+                        <div class="exp-mini-sub">{{ d.catalogos_personal?.nombre || 'Sin tipo' }}<span v-if="d.fecha_vencimiento"> · Vence {{ d.fecha_vencimiento }}</span></div>
+                      </div>
+                      <div style="display:flex; gap:4px;">
+                        <button type="button" class="action-btn" title="Descargar" @click="descargarDocumento(d)">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </button>
+                        <button type="button" class="action-btn" title="Eliminar" @click="quitarDocumento(d)">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    </li>
+                  </ul>
+                  <div class="form-section-title">Subir documento</div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Tipo de documento</label>
+                      <select v-model="nuevoDocumento.tipoDocumentoId"><option value="">Seleccionar</option><option v-for="t in tiposDocumento" :key="t.id" :value="t.id">{{ t.nombre }}</option></select>
+                    </div>
+                    <div class="form-field"><label>Nombre</label><input v-model="nuevoDocumento.nombre" type="text" placeholder="Cédula, currículum..." /></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-field"><label>Fecha de emisión</label><DatePicker v-model="nuevoDocumento.fechaEmision" /></div>
+                    <div class="form-field"><label>Fecha de vencimiento</label><DatePicker v-model="nuevoDocumento.fechaVencimiento" /></div>
+                  </div>
+                  <div class="form-field"><label>Archivo <span class="req">*</span></label><input type="file" @change="onDocumentoFileChange" /></div>
+                  <div class="form-field"><label>Observaciones</label><textarea v-model="nuevoDocumento.observaciones" rows="2"></textarea></div>
+                  <div v-if="documentoError" class="req" style="font-size:12.5px;">{{ documentoError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" :disabled="documentoSubiendo" @click="subirNuevoDocumento">{{ documentoSubiendo ? 'Subiendo...' : 'Subir documento' }}</button></div>
+                </div>
+
+                <!-- Historial laboral -->
+                <div v-else-if="expedienteTab === 'historial'" class="exp-subsection">
+                  <ul class="exp-mini-list">
+                    <li v-if="!movimientos.length" class="exp-mini-empty">Sin movimientos registrados</li>
+                    <li v-for="m in movimientos" :key="m.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ m.tipo?.nombre || 'Movimiento' }}</strong>
+                        <div class="exp-mini-sub">
+                          {{ m.fecha }}
+                          <span v-if="m.puestoAnterior?.nombre || m.puestoNuevo?.nombre"> · {{ m.puestoAnterior?.nombre || '—' }} → {{ m.puestoNuevo?.nombre || '—' }}</span>
+                          <span v-if="m.salario_anterior || m.salario_nuevo"> · ₡{{ m.salario_anterior || 0 }} → ₡{{ m.salario_nuevo || 0 }}</span>
+                          <span v-if="m.motivo"> · {{ m.motivo }}</span>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                  <p class="exp-hint">Los cambios de puesto, departamento y salario quedan registrados automáticamente al editar la información laboral. Este historial no se puede editar ni eliminar.</p>
+                  <div class="form-section-title">Registrar otro movimiento</div>
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label>Tipo de movimiento</label>
+                      <input v-model="nuevoMovimiento.tipoMovimiento" type="text" list="tipo-movimiento-options" placeholder="Traslado, Permiso, Suspensión..." />
+                      <datalist id="tipo-movimiento-options"><option v-for="t in tiposMovimiento" :key="t.id" :value="t.nombre" /></datalist>
+                    </div>
+                    <div class="form-field"><label>Fecha</label><DatePicker v-model="nuevoMovimiento.fecha" /></div>
+                  </div>
+                  <div class="form-field"><label>Motivo</label><textarea v-model="nuevoMovimiento.motivo" rows="2"></textarea></div>
+                  <div v-if="movimientoError" class="req" style="font-size:12.5px;">{{ movimientoError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" @click="agregarMovimiento">Registrar movimiento</button></div>
+                </div>
+
+                <!-- Salida -->
+                <div v-else-if="expedienteTab === 'salida'" class="exp-subsection">
+                  <ul class="exp-mini-list">
+                    <li v-if="!salidas.length" class="exp-mini-empty">El colaborador no tiene salidas registradas</li>
+                    <li v-for="s in salidas" :key="s.id" class="exp-mini-item">
+                      <div><strong>{{ s.fecha_salida }}</strong><div class="exp-mini-sub">{{ s.motivo }}</div></div>
+                    </li>
+                  </ul>
+                  <div class="form-section-title">Registrar salida</div>
+                  <p class="exp-hint">Al registrar una salida, el colaborador pasa automáticamente a estado Inactivo. Su expediente permanece disponible para consulta.</p>
+                  <div class="form-row">
+                    <div class="form-field"><label>Fecha de salida <span class="req">*</span></label><DatePicker v-model="salidaFecha" /></div>
+                    <div class="form-field">
+                      <label>Tipo de salida <span class="req">*</span></label>
+                      <input v-model="nuevaSalida.tipoSalida" type="text" list="tipo-salida-options" placeholder="Renuncia, Despido, Jubilación..." />
+                      <datalist id="tipo-salida-options"><option v-for="t in tiposSalida" :key="t.id" :value="t.nombre" /></datalist>
+                    </div>
+                  </div>
+                  <div class="form-field"><label>Motivo</label><textarea v-model="nuevaSalida.motivo" rows="2"></textarea></div>
+                  <div class="form-field"><label>Observaciones</label><textarea v-model="nuevaSalida.observaciones" rows="2"></textarea></div>
+                  <div v-if="salidaError" class="req" style="font-size:12.5px;">{{ salidaError }}</div>
+                  <div class="modal-actions"><button type="button" class="btn-primary" :disabled="salidaSaving" @click="registrarSalidaColaborador">Registrar salida</button></div>
+                </div>
+
+                <!-- Auditoría -->
+                <div v-else-if="expedienteTab === 'auditoria'" class="exp-subsection">
+                  <ul class="exp-mini-list">
+                    <li v-if="!auditoria.length" class="exp-mini-empty">Sin registros de auditoría todavía</li>
+                    <li v-for="a in auditoria" :key="a.id" class="exp-mini-item">
+                      <div>
+                        <strong>{{ a.accion === 'crear' ? 'Expediente creado' : 'Expediente actualizado' }}</strong>
+                        <div class="exp-mini-sub">{{ a.profiles?.full_name || 'Usuario' }} · {{ new Date(a.created_at).toLocaleString('es-CR') }}</div>
+                      </div>
+                    </li>
+                  </ul>
                 </div>
               </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha de ingreso</label><DatePicker v-model="empForm.fechaIngreso" /></div>
-                <div class="form-field"><label>Tipo de contrato</label>
-                  <select v-model="empForm.tipoContrato"><option>Tiempo completo</option><option>Tiempo parcial</option><option>Por servicios</option></select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Salario base (₡)</label><input v-model="empForm.salario" type="number" placeholder="500000" /></div>
-                <div class="form-field"><label>Estado</label>
-                  <select v-model="empForm.activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
-                </div>
-              </div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar</button>
-              </div>
-            </form>
+            </div>
           </template>
 
-          <!-- Solicitud de vacaciones -->
+          <!-- Confirmar eliminación de colaborador -->
+          <template v-if="modal.type === 'eliminar'">
+            <h3 class="modal-title">Eliminar colaborador</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar a <strong>{{ modal.data ? nombreCompleto(modal.data) : '' }}</strong>? Se eliminará también todo su expediente:
+              contactos, contratos, formación académica, certificaciones, documentos e historial laboral.
+            </p>
+            <div v-if="eliminarEmpleadoError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarEmpleadoError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoEmpleado" @click="eliminarEmpleadoConfirmado">
+                {{ eliminandoEmpleado ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Confirmar eliminación de solicitud de vacaciones -->
+          <template v-if="modal.type === 'eliminar-vacacion'">
+            <h3 class="modal-title">Eliminar solicitud</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar la solicitud <strong>{{ modal.data?.numeroSolicitud }}</strong> de <strong>{{ modal.data?.name }}</strong>?
+            </p>
+            <div v-if="eliminarVacacionError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarVacacionError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoVacacion" @click="eliminarVacacionConfirmada">
+                {{ eliminandoVacacion ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Solicitud de vacaciones (en pestañas: Solicitud / Aprobación) -->
           <template v-if="modal.type === 'vacacion'">
             <h3 class="modal-title">Solicitud de vacaciones</h3>
-            <p class="modal-subtitle">Ingresa el período de vacaciones solicitado</p>
-            <form class="modal-form" @submit.prevent="enviarVacacion">
-              <div class="form-field">
-                <label>Colaborador <span class="req">*</span></label>
-                <select v-model="vacacionForm.empleadoId" required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker v-model="vacacionForm.inicio" required /></div>
-                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker v-model="vacacionForm.fin" required /></div>
-              </div>
-              <div class="form-field"><label>Observaciones</label><textarea v-model="vacacionForm.motivo" rows="3" placeholder="Motivo o notas adicionales..."></textarea></div>
-              <div v-if="solicitudError" class="req" style="font-size:12.5px;">{{ solicitudError }}</div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Enviar solicitud</button>
-              </div>
-            </form>
-          </template>
+            <p class="modal-subtitle">{{ modal.data ? modal.data.numeroSolicitud : 'Nueva solicitud' }}</p>
 
-          <!-- Solicitud de permiso -->
-          <template v-if="modal.type === 'permiso'">
-            <h3 class="modal-title">Solicitud de permiso</h3>
-            <p class="modal-subtitle">Registra el tipo de permiso solicitado</p>
-            <form class="modal-form" @submit.prevent="enviarPermiso">
-              <div class="form-field">
-                <label>Colaborador <span class="req">*</span></label>
-                <select v-model="permisoForm.empleadoId" required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option></select>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label>Tipo de permiso <span class="req">*</span></label>
-                  <select v-model="permisoForm.tipo" required>
-                    <option value="">Seleccionar</option>
-                    <option>Con goce salarial</option>
-                    <option>Sin goce salarial</option>
-                    <option>Cita médica</option>
-                    <option>Maternidad</option>
-                    <option>Paternidad</option>
-                    <option>Fallecimiento familiar</option>
-                    <option>Estudio</option>
-                    <option>Otro</option>
-                  </select>
-                </div>
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><DatePicker v-model="permisoForm.fecha" required /></div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Horas <span class="req">*</span></label><input v-model="permisoForm.horas" type="number" min="1" max="8" placeholder="4" required /></div>
-                <div class="form-field"><label>Evidencia (opcional)</label><input type="file" /></div>
-              </div>
-              <div class="form-field"><label>Motivo</label><textarea v-model="permisoForm.motivo" rows="2" placeholder="Descripción del motivo..."></textarea></div>
-              <div v-if="solicitudError" class="req" style="font-size:12.5px;">{{ solicitudError }}</div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Enviar solicitud</button>
-              </div>
-            </form>
-          </template>
+            <div class="vac-modal-tabs">
+              <button type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': vacTab === 'solicitud' }" @click="vacTab = 'solicitud'">Solicitud</button>
+              <button
+                type="button" class="exp-tab-item"
+                :class="{ 'exp-tab-item--active': vacTab === 'aprobacion', 'exp-tab-item--disabled': !modal.data }"
+                @click="modal.data && (vacTab = 'aprobacion')"
+              >Aprobación</button>
+            </div>
 
-          <!-- Subir documento -->
-          <template v-if="modal.type === 'documento'">
-            <h3 class="modal-title">Subir documento</h3>
-            <p class="modal-subtitle">Adjunta un documento al expediente del colaborador</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
+            <!-- Tab: Solicitud -->
+            <form v-if="vacTab === 'solicitud'" class="modal-form" @submit.prevent="enviarSolicitudVacacion">
               <div class="form-field">
                 <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label>Categoría <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Personales</option>
-                    <option>Laborales</option>
-                    <option>Académicos</option>
-                  </select>
-                </div>
-                <div class="form-field">
-                  <label>Tipo de documento <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <optgroup label="Personales">
-                      <option>Cédula de identidad</option>
-                      <option>Pasaporte</option>
-                      <option>Licencia de conducir</option>
-                      <option>Certificación</option>
-                    </optgroup>
-                    <optgroup label="Laborales">
-                      <option>Contrato laboral</option>
-                      <option>Adenda contractual</option>
-                      <option>Nombramiento</option>
-                      <option>Carta disciplinaria</option>
-                    </optgroup>
-                    <optgroup label="Académicos">
-                      <option>Título académico</option>
-                      <option>Certificación de estudios</option>
-                      <option>Constancia</option>
-                    </optgroup>
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha de emisión</label><DatePicker /></div>
-                <div class="form-field"><label>Fecha de vencimiento <span class="text-muted-sm">(si aplica)</span></label><DatePicker /></div>
-              </div>
-              <div class="form-field">
-                <label>Archivo <span class="req">*</span></label>
-                <div class="file-drop">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7A90A0" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  <p>Arrastra el archivo aquí o <label class="file-link">selecciona uno<input type="file" accept=".pdf,.doc,.docx,.jpg,.png" hidden /></label></p>
-                  <small>PDF, Word, JPG o PNG — máx. 10 MB</small>
-                </div>
-              </div>
-              <div class="form-field"><label>Observaciones</label><textarea rows="2" placeholder="Notas sobre el documento..."></textarea></div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar documento</button>
-              </div>
-            </form>
-          </template>
-
-          <!-- Registrar asistencia -->
-          <template v-if="modal.type === 'asistencia'">
-            <h3 class="modal-title">Registrar asistencia</h3>
-            <p class="modal-subtitle">Ingreso manual de entrada o salida de un colaborador</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
-              <div class="form-field">
-                <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha <span class="req">*</span></label><DatePicker required /></div>
-                <div class="form-field">
-                  <label>Tipo de registro <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Entrada</option>
-                    <option>Salida</option>
-                    <option>Entrada y salida</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field"><label>Hora de entrada</label><input type="time" /></div>
-                <div class="form-field"><label>Hora de salida</label><input type="time" /></div>
-              </div>
-              <div class="form-field">
-                <label>Método de registro</label>
-                <select>
-                  <option>Manual</option>
-                  <option>Código QR</option>
-                  <option>Aplicación móvil</option>
-                  <option>Geolocalización</option>
+                <select v-model="vacForm.empleadoId" :disabled="!!modal.data" required>
+                  <option value="">Seleccionar</option>
+                  <option v-for="e in employees" :key="e.id" :value="e.id">{{ nombreCompleto(e) }}</option>
                 </select>
               </div>
-              <div class="form-field"><label>Observaciones</label><textarea rows="2" placeholder="Justificación o nota del registro..."></textarea></div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Registrar</button>
-              </div>
-            </form>
-          </template>
 
-          <!-- Nueva incapacidad -->
-          <template v-if="modal.type === 'incapacidad'">
-            <h3 class="modal-title">Registrar incapacidad</h3>
-            <p class="modal-subtitle">Ingresa los datos del certificado de incapacidad</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
-              <div class="form-field">
-                <label>Colaborador <span class="req">*</span></label>
-                <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
+              <div v-if="vacEmpleadoInfo" class="exp-grid" style="margin: 6px 0 4px;">
+                <div class="exp-field"><label>Código</label><span>{{ vacEmpleadoInfo.codigo }}</span></div>
+                <div class="exp-field"><label>Departamento</label><span>{{ vacEmpleadoInfo.departamento }}</span></div>
+                <div class="exp-field"><label>Puesto</label><span>{{ vacEmpleadoInfo.puesto }}</span></div>
+                <div class="exp-field"><label>Jefatura</label><span>{{ vacEmpleadoInfo.jefatura }}</span></div>
+                <div class="exp-field"><label>Fecha de ingreso</label><span>{{ vacEmpleadoInfo.fechaIngreso }}</span></div>
+                <div class="exp-field"><label>Días disponibles</label><span>{{ vacDiasDisponibles !== null ? vacDiasDisponibles + ' días' : '—' }}</span></div>
               </div>
-              <div class="form-row">
-                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker required /></div>
-                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker required /></div>
-              </div>
+
               <div class="form-row">
                 <div class="form-field">
-                  <label>Institución emisora <span class="req">*</span></label>
-                  <select required>
+                  <label>Tipo de vacaciones</label>
+                  <select v-model="vacForm.tipoVacacionId" :disabled="!vacCamposEditables">
                     <option value="">Seleccionar</option>
-                    <option>CCSS</option>
-                    <option>INS</option>
-                    <option>Médico privado</option>
-                    <option>Otro</option>
+                    <option v-for="t in tiposVacacion" :key="t.id" :value="t.id">{{ t.nombre }}</option>
                   </select>
                 </div>
-                <div class="form-field"><label>N.º de certificado</label><input type="text" placeholder="Número del documento" /></div>
+                <div class="form-field">
+                  <label>Quién aprueba</label>
+                  <select v-model="vacForm.aprobadorDesignadoId" :disabled="!vacCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="a in aprobadoresDisponibles" :key="a.id" :value="a.id">{{ a.name }}</option>
+                  </select>
+                  <p v-if="!aprobadoresDisponibles.length" class="exp-hint">No hay personal en Gerencia General o Administración.</p>
+                </div>
               </div>
-              <div class="form-field"><label>Diagnóstico general <span class="text-muted-sm">(opcional)</span></label><input type="text" placeholder="Descripción general sin datos médicos sensibles" /></div>
+              <div class="form-row">
+                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker v-model="vacForm.fechaInicio" :disabled="!vacCamposEditables" /></div>
+                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker v-model="vacForm.fechaFin" :disabled="!vacCamposEditables" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Días solicitados</label><input :value="vacForm.diasSolicitados" type="text" disabled /></div>
+                <div class="form-field"><label>Días hábiles</label><input :value="vacForm.diasHabiles" type="text" disabled /></div>
+              </div>
+              <div class="form-field"><label>Observaciones</label><textarea v-model="vacForm.observaciones" rows="3" placeholder="Motivo o notas adicionales..." :disabled="!vacCamposEditables"></textarea></div>
+
               <div class="form-field">
-                <label>Documento adjunto <span class="req">*</span></label>
-                <input type="file" accept=".pdf,.jpg,.png" required />
+                <label>Documento adjunto</label>
+                <div v-if="vacDocumentoActual" class="adjunto-actual">
+                  <span class="adjunto-nombre" @click="verDocumentoVacacion">{{ vacDocumentoActual.nombre }}</span>
+                  <button v-if="vacCamposEditables" type="button" class="adjunto-quitar" title="Quitar documento" @click="quitarDocumentoVacacion">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <input v-if="vacCamposEditables" type="file" @change="onVacArchivoChange" />
               </div>
-              <div class="form-field"><label>Observaciones</label><textarea rows="2" placeholder="Notas adicionales..."></textarea></div>
+
+              <div v-if="vacError" class="req" style="font-size:12.5px;">{{ vacError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                <button v-if="vacCamposEditables" type="submit" class="btn-primary" :disabled="vacSaving">
+                  {{ vacSaving ? 'Guardando...' : (modal.data ? 'Guardar cambios' : 'Enviar solicitud') }}
+                </button>
+              </div>
+            </form>
+
+            <!-- Tab: Aprobación -->
+            <div v-else-if="vacTab === 'aprobacion' && modal.data" class="exp-subsection">
+              <div class="exp-grid">
+                <div class="exp-field"><label>Estado</label><span class="badge" :class="`badge--${modal.data.statusClass}`">{{ modal.data.status }}</span></div>
+                <div class="exp-field"><label>Fecha de solicitud</label><span>{{ modal.data.fechaSolicitud }}</span></div>
+              </div>
+
+              <template v-if="modal.data.estado === 'pendiente'">
+                <div class="form-field"><label>Comentario (si apruebas, opcional)</label><textarea v-model="vacAprobacionComentario" rows="2"></textarea></div>
+                <div class="form-field"><label>Motivo de rechazo <span class="req">*</span> (obligatorio si rechazas)</label><textarea v-model="vacAprobacionMotivo" rows="2"></textarea></div>
+                <div v-if="vacError" class="req" style="font-size:12.5px;">{{ vacError }}</div>
+                <div class="modal-actions">
+                  <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                  <button type="button" class="btn-primary btn-primary--danger" :disabled="vacResolviendo" @click="rechazarVacacion">Rechazar</button>
+                  <button type="button" class="btn-primary" :disabled="vacResolviendo" @click="aprobarVacacion">Aprobar</button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="exp-grid">
+                  <div class="exp-field"><label>Resuelto por</label><span>{{ modal.data.aprobadoPor || '—' }}</span></div>
+                  <div class="exp-field"><label>Fecha de resolución</label><span>{{ modal.data.fechaAprobacion ? new Date(modal.data.fechaAprobacion).toLocaleString('es-CR') : '—' }}</span></div>
+                  <div v-if="modal.data.comentarioAprobacion" class="exp-field exp-field--full"><label>Comentario</label><span>{{ modal.data.comentarioAprobacion }}</span></div>
+                  <div v-if="modal.data.motivoRechazo" class="exp-field exp-field--full"><label>Motivo de rechazo</label><span>{{ modal.data.motivoRechazo }}</span></div>
+                </div>
+                <div class="modal-actions"><button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button></div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Confirmar eliminación de solicitud de permiso -->
+          <template v-if="modal.type === 'eliminar-permiso'">
+            <h3 class="modal-title">Eliminar solicitud</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar la solicitud <strong>{{ modal.data?.numeroSolicitud }}</strong> de <strong>{{ modal.data?.name }}</strong>?
+            </p>
+            <div v-if="eliminarPermisoError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarPermisoError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoPermiso" @click="eliminarPermisoConfirmada">
+                {{ eliminandoPermiso ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Solicitud de permiso (en pestañas: Solicitud / Aprobación) -->
+          <template v-if="modal.type === 'permiso'">
+            <h3 class="modal-title">Solicitud de permiso</h3>
+            <p class="modal-subtitle">{{ modal.data ? modal.data.numeroSolicitud : 'Nueva solicitud' }}</p>
+
+            <div class="vac-modal-tabs">
+              <button type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': permTab === 'solicitud' }" @click="permTab = 'solicitud'">Solicitud</button>
+              <button
+                type="button" class="exp-tab-item"
+                :class="{ 'exp-tab-item--active': permTab === 'aprobacion', 'exp-tab-item--disabled': !modal.data }"
+                @click="modal.data && (permTab = 'aprobacion')"
+              >Aprobación</button>
+            </div>
+
+            <!-- Tab: Solicitud -->
+            <form v-if="permTab === 'solicitud'" class="modal-form" @submit.prevent="enviarSolicitudPermiso">
+              <div class="form-field">
+                <label>Colaborador <span class="req">*</span></label>
+                <select v-model="permForm.empleadoId" :disabled="!!modal.data" required>
+                  <option value="">Seleccionar</option>
+                  <option v-for="e in employees" :key="e.id" :value="e.id">{{ nombreCompleto(e) }}</option>
+                </select>
+              </div>
+
+              <div v-if="permEmpleadoInfo" class="exp-grid" style="margin: 6px 0 4px;">
+                <div class="exp-field"><label>Código</label><span>{{ permEmpleadoInfo.codigo }}</span></div>
+                <div class="exp-field"><label>Departamento</label><span>{{ permEmpleadoInfo.departamento }}</span></div>
+                <div class="exp-field"><label>Puesto</label><span>{{ permEmpleadoInfo.puesto }}</span></div>
+                <div class="exp-field"><label>Jefatura</label><span>{{ permEmpleadoInfo.jefatura }}</span></div>
+                <div class="exp-field"><label>Fecha de ingreso</label><span>{{ permEmpleadoInfo.fechaIngreso }}</span></div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label>Tipo de permiso</label>
+                  <select v-model="permForm.tipoPermisoId" :disabled="!permCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="t in tiposPermiso" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Quién aprueba</label>
+                  <select v-model="permForm.aprobadorDesignadoId" :disabled="!permCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="a in aprobadoresDisponibles" :key="a.id" :value="a.id">{{ a.name }}</option>
+                  </select>
+                  <p v-if="!aprobadoresDisponibles.length" class="exp-hint">No hay personal en Gerencia General o Administración.</p>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker v-model="permForm.fechaInicio" :disabled="!permCamposEditables" /></div>
+                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker v-model="permForm.fechaFin" :disabled="!permCamposEditables" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Hora inicio</label><TimePicker v-model="permForm.horaInicio" :disabled="!permCamposEditables" /></div>
+                <div class="form-field"><label>Hora fin</label><TimePicker v-model="permForm.horaFin" :disabled="!permCamposEditables" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Cantidad de días</label><input :value="permForm.cantidadDias" type="text" disabled /></div>
+                <div class="form-field"><label>Cantidad de horas</label><input :value="permForm.cantidadHoras" type="text" disabled /></div>
+              </div>
+              <div class="form-field"><label>Motivo</label><textarea v-model="permForm.motivo" rows="2" placeholder="Descripción del motivo..." :disabled="!permCamposEditables"></textarea></div>
+              <div class="form-field"><label>Observaciones</label><textarea v-model="permForm.observaciones" rows="2" :disabled="!permCamposEditables"></textarea></div>
+
+              <div class="form-field">
+                <label>Documento adjunto</label>
+                <div v-if="permDocumentoActual" class="adjunto-actual">
+                  <span class="adjunto-nombre" @click="verDocumentoPermiso">{{ permDocumentoActual.nombre }}</span>
+                  <button v-if="permCamposEditables" type="button" class="adjunto-quitar" title="Quitar documento" @click="quitarDocumentoPermiso">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <input v-if="permCamposEditables" type="file" @change="onPermArchivoChange" />
+              </div>
+
+              <div v-if="permError" class="req" style="font-size:12.5px;">{{ permError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                <button v-if="permCamposEditables" type="submit" class="btn-primary" :disabled="permSaving">
+                  {{ permSaving ? 'Guardando...' : (modal.data ? 'Guardar cambios' : 'Enviar solicitud') }}
+                </button>
+              </div>
+            </form>
+
+            <!-- Tab: Aprobación -->
+            <div v-else-if="permTab === 'aprobacion' && modal.data" class="exp-subsection">
+              <div class="exp-grid">
+                <div class="exp-field"><label>Estado</label><span class="badge" :class="`badge--${modal.data.statusClass}`">{{ modal.data.status }}</span></div>
+                <div class="exp-field"><label>Fecha de solicitud</label><span>{{ modal.data.fechaSolicitud }}</span></div>
+              </div>
+
+              <template v-if="modal.data.estado === 'pendiente'">
+                <div class="form-field"><label>Comentario (si apruebas, opcional)</label><textarea v-model="permAprobacionComentario" rows="2"></textarea></div>
+                <div class="form-field"><label>Motivo de rechazo <span class="req">*</span> (obligatorio si rechazas)</label><textarea v-model="permAprobacionMotivo" rows="2"></textarea></div>
+                <div v-if="permError" class="req" style="font-size:12.5px;">{{ permError }}</div>
+                <div class="modal-actions">
+                  <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                  <button type="button" class="btn-primary btn-primary--danger" :disabled="permResolviendo" @click="rechazarPermiso">Rechazar</button>
+                  <button type="button" class="btn-primary" :disabled="permResolviendo" @click="aprobarPermiso">Aprobar</button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="exp-grid">
+                  <div class="exp-field"><label>Resuelto por</label><span>{{ modal.data.aprobadoPor || '—' }}</span></div>
+                  <div class="exp-field"><label>Fecha de resolución</label><span>{{ modal.data.fechaAprobacion ? new Date(modal.data.fechaAprobacion).toLocaleString('es-CR') : '—' }}</span></div>
+                  <div v-if="modal.data.comentarioAprobacion" class="exp-field exp-field--full"><label>Comentario</label><span>{{ modal.data.comentarioAprobacion }}</span></div>
+                  <div v-if="modal.data.motivoRechazo" class="exp-field exp-field--full"><label>Motivo de rechazo</label><span>{{ modal.data.motivoRechazo }}</span></div>
+                </div>
+                <div class="modal-actions"><button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button></div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Confirmar eliminación de incapacidad -->
+          <template v-if="modal.type === 'eliminar-incapacidad'">
+            <h3 class="modal-title">Eliminar registro</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar el registro <strong>{{ modal.data?.numeroRegistro }}</strong> de <strong>{{ modal.data?.name }}</strong>?
+            </p>
+            <div v-if="eliminarIncapacidadError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarIncapacidadError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoIncapacidad" @click="eliminarIncapacidadConfirmada">
+                {{ eliminandoIncapacidad ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Registro de incapacidad (en pestañas: Registro / Reincorporación) -->
+          <template v-if="modal.type === 'incapacidad'">
+            <h3 class="modal-title">Registro de incapacidad</h3>
+            <p class="modal-subtitle">{{ modal.data ? modal.data.numeroRegistro : 'Nuevo registro' }}</p>
+
+            <div class="vac-modal-tabs">
+              <button type="button" class="exp-tab-item" :class="{ 'exp-tab-item--active': incTab === 'registro' }" @click="incTab = 'registro'">Registro</button>
+              <button
+                type="button" class="exp-tab-item"
+                :class="{ 'exp-tab-item--active': incTab === 'reincorporacion', 'exp-tab-item--disabled': !modal.data }"
+                @click="modal.data && (incTab = 'reincorporacion')"
+              >Reincorporación</button>
+            </div>
+
+            <!-- Tab: Registro -->
+            <form v-if="incTab === 'registro'" class="modal-form" @submit.prevent="enviarRegistroIncapacidad">
+              <div class="form-field">
+                <label>Colaborador <span class="req">*</span></label>
+                <select v-model="incForm.empleadoId" :disabled="!!modal.data" required>
+                  <option value="">Seleccionar</option>
+                  <option v-for="e in employees" :key="e.id" :value="e.id">{{ nombreCompleto(e) }}</option>
+                </select>
+              </div>
+
+              <div v-if="incEmpleadoInfo" class="exp-grid" style="margin: 6px 0 4px;">
+                <div class="exp-field"><label>Código</label><span>{{ incEmpleadoInfo.codigo }}</span></div>
+                <div class="exp-field"><label>Departamento</label><span>{{ incEmpleadoInfo.departamento }}</span></div>
+                <div class="exp-field"><label>Puesto</label><span>{{ incEmpleadoInfo.puesto }}</span></div>
+                <div class="exp-field"><label>Jefatura</label><span>{{ incEmpleadoInfo.jefatura }}</span></div>
+                <div class="exp-field"><label>Fecha de ingreso</label><span>{{ incEmpleadoInfo.fechaIngreso }}</span></div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label>Tipo de incapacidad</label>
+                  <select v-model="incForm.tipoIncapacidadId" :disabled="!incCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="t in tiposIncapacidad" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Institución emisora</label>
+                  <select v-model="incForm.institucionEmisoraId" :disabled="!incCamposEditables">
+                    <option value="">Seleccionar</option>
+                    <option v-for="i in institucionesEmisoras" :key="i.id" :value="i.id">{{ i.nombre }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>N° de referencia</label><input v-model="incForm.numeroReferencia" type="text" placeholder="Número emitido por la institución" :disabled="!incCamposEditables" /></div>
+                <div class="form-field"><label>Fecha de emisión</label><DatePicker v-model="incForm.fechaEmision" :disabled="!incCamposEditables" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Fecha inicio <span class="req">*</span></label><DatePicker v-model="incForm.fechaInicio" :disabled="!incCamposEditables" /></div>
+                <div class="form-field"><label>Fecha fin <span class="req">*</span></label><DatePicker v-model="incForm.fechaFin" :disabled="!incCamposEditables" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Cantidad de días</label><input :value="incForm.cantidadDias" type="text" disabled /></div>
+                <div class="form-field"><label>Reincorporación prevista</label><DatePicker v-model="incForm.fechaReincorporacionPrevista" :disabled="!incCamposEditables" /></div>
+              </div>
+              <div class="form-field"><label>Observaciones administrativas</label><textarea v-model="incForm.observaciones" rows="2" :disabled="!incCamposEditables"></textarea></div>
+
+              <div class="form-field">
+                <label>Documento adjunto</label>
+                <div v-if="incDocumentoActual" class="adjunto-actual">
+                  <span class="adjunto-nombre" @click="verDocumentoIncapacidad">{{ incDocumentoActual.nombre }}</span>
+                  <button v-if="incCamposEditables" type="button" class="adjunto-quitar" title="Quitar documento" @click="quitarDocumentoIncapacidad">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <input v-if="incCamposEditables" type="file" @change="onIncArchivoChange" />
+              </div>
+
+              <div v-if="incError" class="req" style="font-size:12.5px;">{{ incError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                <button v-if="incCamposEditables" type="submit" class="btn-primary" :disabled="incSaving">
+                  {{ incSaving ? 'Guardando...' : (modal.data ? 'Guardar cambios' : 'Registrar incapacidad') }}
+                </button>
+              </div>
+            </form>
+
+            <!-- Tab: Reincorporación -->
+            <div v-else-if="incTab === 'reincorporacion' && modal.data" class="exp-subsection">
+              <div class="exp-grid">
+                <div class="exp-field"><label>Estado</label><span class="badge" :class="`badge--${modal.data.statusClass}`">{{ modal.data.status }}</span></div>
+                <div class="exp-field"><label>N° de registro</label><span>{{ modal.data.numeroRegistro }}</span></div>
+                <div class="exp-field"><label>Período</label><span>{{ modal.data.inicio }} — {{ modal.data.fin }}</span></div>
+                <div class="exp-field"><label>Reincorporación prevista</label><span>{{ modal.data.reincorporacionPrevista }}</span></div>
+              </div>
+
+              <template v-if="incCamposEditables">
+                <div class="form-field"><label>Fecha real de reincorporación</label><DatePicker v-model="incReincorporacionFecha" /></div>
+                <div v-if="incError" class="req" style="font-size:12.5px;">{{ incError }}</div>
+                <div class="modal-actions">
+                  <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+                  <button type="button" class="btn-primary" :disabled="incResolviendo" @click="confirmarReincorporacionIncapacidad">Registrar reincorporación</button>
+                </div>
+
+                <div class="exp-subsection" style="margin-top:14px; border-top:1px solid #F0F4F8; padding-top:14px;">
+                  <div class="form-field"><label>Motivo de anulación (solo si vas a anular este registro)</label><textarea v-model="incMotivoAnulacion" rows="2"></textarea></div>
+                  <div class="modal-actions">
+                    <button type="button" class="btn-primary btn-primary--danger" :disabled="incResolviendo" @click="anularIncapacidadForm">Anular registro</button>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div class="exp-grid">
+                  <div v-if="modal.data.estado === 'finalizada'" class="exp-field"><label>Fecha real de reincorporación</label><span>{{ modal.data.reincorporacionReal || '—' }}</span></div>
+                  <div v-if="modal.data.estado === 'anulada'" class="exp-field exp-field--full"><label>Motivo de anulación</label><span>{{ modal.data.motivoAnulacion || '—' }}</span></div>
+                </div>
+                <div class="modal-actions"><button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button></div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Configuración de asistencia -->
+          <template v-if="modal.type === 'asistencia-config'">
+            <h3 class="modal-title">Configuración de asistencia</h3>
+            <p class="modal-subtitle">Define cómo registrará la asistencia esta cooperativa</p>
+            <form class="modal-form" @submit.prevent="guardarConfigAsistenciaForm">
+              <div class="form-field">
+                <label>Modalidad</label>
+                <select v-model="asistConfigForm.modalidad">
+                  <option value="ambas">Carga masiva y marcación propia</option>
+                  <option value="carga_masiva">Solo carga masiva (ya tienen sistema de marcación)</option>
+                  <option value="marcacion_propia">Solo marcación desde el sistema</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Hora de entrada estándar</label><TimePicker v-model="asistConfigForm.horaEntradaEstandar" /></div>
+                <div class="form-field"><label>Hora de salida estándar</label><TimePicker v-model="asistConfigForm.horaSalidaEstandar" /></div>
+              </div>
+              <div class="form-field">
+                <label>Tolerancia de entrada (minutos)</label>
+                <input v-model="asistConfigForm.toleranciaMinutos" type="number" min="0" max="120" />
+              </div>
+              <div v-if="asistConfigError" class="req" style="font-size:12.5px;">{{ asistConfigError }}</div>
               <div class="modal-actions">
                 <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Registrar incapacidad</button>
+                <button type="submit" class="btn-primary" :disabled="asistConfigSaving">{{ asistConfigSaving ? 'Guardando...' : 'Guardar' }}</button>
               </div>
             </form>
           </template>
 
-          <!-- Nueva capacitación -->
+          <!-- Cargar asistencia (carga masiva, en 2 pasos) -->
+          <template v-if="modal.type === 'asistencia-cargar'">
+            <h3 class="modal-title">Cargar asistencia</h3>
+            <p class="modal-subtitle">Paso {{ asistCargaPaso }} de 2</p>
+
+            <template v-if="asistCargaPaso === 1">
+              <div class="asist-dropzone">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7A90A0" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <p>Selecciona el archivo de marcaciones</p>
+                <input type="file" accept=".xlsx,.csv" @change="onArchivoAsistenciaChange" />
+              </div>
+              <p class="exp-hint">Formatos: XLSX o CSV. Columnas: Identificación, Fecha (AAAA-MM-DD), Hora entrada (HH:MM), Hora salida (opcional), Observación (opcional). Descarga la plantilla desde el botón de la pestaña si aún no la tienes.</p>
+              <div v-if="asistCargaError" class="req" style="font-size:12.5px;">{{ asistCargaError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+                <button type="button" class="btn-primary" :disabled="!asistArchivoSeleccionado || asistCargaValidando" @click="validarArchivoAsistencia">
+                  {{ asistCargaValidando ? 'Validando...' : 'Validar archivo' }}
+                </button>
+              </div>
+            </template>
+
+            <template v-else-if="asistCargaPaso === 2">
+              <div class="exp-grid" style="margin-bottom:10px;">
+                <div class="exp-field"><label>Registros encontrados</label><span>{{ asistCargaResultado.total }}</span></div>
+                <div class="exp-field"><label>Válidos</label><span style="color:#1A9152;">{{ asistCargaResultado.validos.length }}</span></div>
+                <div class="exp-field"><label>Con advertencia</label><span style="color:#C47F0C;">{{ asistCargaResultado.advertencias.length }}</span></div>
+                <div class="exp-field"><label>Con error</label><span style="color:#C0392B;">{{ asistCargaResultado.errores.length }}</span></div>
+              </div>
+
+              <div v-if="asistCargaResultado.errores.length" class="asist-issues">
+                <div v-for="(e, i) in asistCargaResultado.errores" :key="'err'+i" class="asist-issue asist-issue--error">
+                  <strong>Fila {{ e.fila }}</strong> — Identificación: {{ e.identificacion }} — {{ e.mensaje }}
+                </div>
+              </div>
+              <div v-if="asistCargaResultado.advertencias.length" class="asist-issues">
+                <div v-for="(a, i) in asistCargaResultado.advertencias" :key="'warn'+i" class="asist-issue asist-issue--warn">
+                  <strong>Fila {{ a.fila }}</strong> — Identificación: {{ a.identificacion }} — {{ a.mensaje }}
+                </div>
+              </div>
+
+              <div v-if="asistCargaError" class="req" style="font-size:12.5px;">{{ asistCargaError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="asistCargaPaso = 1">Volver</button>
+                <button type="button" class="btn-primary" :disabled="!asistCargaResultado.validos.length || asistCargaImportando" @click="confirmarCargaAsistencia">
+                  {{ asistCargaImportando ? 'Importando...' : `Confirmar importación (${asistCargaResultado.validos.length})` }}
+                </button>
+              </div>
+            </template>
+          </template>
+
+          <!-- Marcar asistencia (colaborador sin sistema de marcación propio) -->
+          <template v-if="modal.type === 'asistencia-marcar'">
+            <h3 class="modal-title">Marcar asistencia</h3>
+            <div class="asist-marcar">
+              <template v-if="!miEmpleadoAsistencia">
+                <p class="modal-subtitle">Tu usuario no está vinculado a ningún expediente de colaborador. Contacta a Recursos Humanos.</p>
+              </template>
+              <template v-else>
+                <p class="asist-marcar-saludo">{{ saludoAsistencia }}, {{ miEmpleadoAsistencia.name }}</p>
+                <p class="asist-marcar-fecha">{{ fechaLargaHoy }}</p>
+
+                <template v-if="!marcacionHoyAsistencia?.hora_entrada">
+                  <p class="asist-marcar-reloj">{{ asistReloj }}</p>
+                  <button type="button" class="asist-circulo asist-circulo--verde" :disabled="asistMarcarCargando" @click="confirmarMarcarEntrada">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Marcar entrada</span>
+                  </button>
+                </template>
+
+                <template v-else-if="!marcacionHoyAsistencia?.hora_salida">
+                  <div class="asist-marcar-resultado">
+                    <span v-if="marcacionHoyAsistencia.minutos_tardanza > 0" class="badge badge--yellow">⚠ Tardanza: {{ marcacionHoyAsistencia.minutos_tardanza }} min</span>
+                    <span v-else class="badge badge--green">✓ Entrada puntual</span>
+                    <p>Entrada registrada: <strong>{{ hhmm(marcacionHoyAsistencia.hora_entrada) }}</strong></p>
+                  </div>
+                  <button type="button" class="asist-circulo asist-circulo--rojo" :disabled="asistMarcarCargando" @click="confirmarMarcarSalida">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>Marcar salida</span>
+                  </button>
+                </template>
+
+                <template v-else>
+                  <div class="asist-marcar-resultado">
+                    <p>✓ Jornada completada</p>
+                    <p>Entrada: <strong>{{ hhmm(marcacionHoyAsistencia.hora_entrada) }}</strong> · Salida: <strong>{{ hhmm(marcacionHoyAsistencia.hora_salida) }}</strong></p>
+                    <p v-if="horasTrabajadasHoy != null">Horas trabajadas: <strong>{{ horasTrabajadasHoy }}h</strong></p>
+                  </div>
+                </template>
+
+                <div v-if="asistMarcarError" class="req" style="font-size:12.5px; margin-top:10px;">{{ asistMarcarError }}</div>
+              </template>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+            </div>
+          </template>
+
+          <!-- Nueva / editar capacitación -->
           <template v-if="modal.type === 'capacitacion'">
-            <h3 class="modal-title">Nueva capacitación</h3>
+            <h3 class="modal-title">{{ modal.data ? 'Editar capacitación' : 'Nueva capacitación' }}</h3>
             <p class="modal-subtitle">Registra una capacitación para el plan de formación</p>
             <form class="modal-form" @submit.prevent="guardarCapacitacion">
               <div class="form-field form-field--full">
@@ -1084,23 +1941,16 @@
               <div class="form-row">
                 <div class="form-field">
                   <label>Categoría <span class="req">*</span></label>
-                  <select v-model="capacitacionForm.categoria" required>
+                  <select v-model="capacitacionForm.categoriaId" required>
                     <option value="">Seleccionar</option>
-                    <option>Tecnología</option>
-                    <option>Finanzas</option>
-                    <option>Liderazgo</option>
-                    <option>Normativa</option>
-                    <option>Atención al asociado</option>
-                    <option>Otro</option>
+                    <option v-for="c in categoriasCapacitacion" :key="c.id" :value="c.id">{{ c.nombre }}</option>
                   </select>
                 </div>
                 <div class="form-field">
                   <label>Modalidad <span class="req">*</span></label>
-                  <select v-model="capacitacionForm.modalidad" required>
+                  <select v-model="capacitacionForm.modalidadId" required>
                     <option value="">Seleccionar</option>
-                    <option>Presencial</option>
-                    <option>Virtual</option>
-                    <option>Mixta</option>
+                    <option v-for="m in modalidadesCapacitacion" :key="m.id" :value="m.id">{{ m.nombre }}</option>
                   </select>
                 </div>
               </div>
@@ -1109,7 +1959,6 @@
                 <div class="form-field"><label>Duración (horas) <span class="req">*</span></label><input v-model="capacitacionForm.horas" type="number" min="1" placeholder="8" required /></div>
               </div>
               <div class="form-row">
-                <div class="form-field"><label>Instructor / Proveedor</label><input v-model="capacitacionForm.instructor" type="text" placeholder="Nombre del facilitador o empresa" /></div>
                 <div class="form-field">
                   <label>Estado</label>
                   <select v-model="capacitacionForm.estado">
@@ -1118,83 +1967,214 @@
                     <option>Finalizada</option>
                   </select>
                 </div>
-              </div>
-              <div class="form-field">
-                <label>Departamentos participantes</label>
-                <div class="checkbox-group">
-                  <label class="checkbox-item"><input type="checkbox" /> Administración</label>
-                  <label class="checkbox-item"><input type="checkbox" /> Finanzas</label>
-                  <label class="checkbox-item"><input type="checkbox" /> Operaciones</label>
-                  <label class="checkbox-item"><input type="checkbox" /> Todos</label>
-                </div>
-              </div>
-              <div class="form-field"><label>Descripción</label><textarea rows="3" placeholder="Objetivos, contenido o notas sobre la capacitación..."></textarea></div>
-              <div class="form-field"><label>Materiales / Adjunto</label><input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" /></div>
-              <div v-if="capacitacionError" class="req" style="font-size:12.5px;">{{ capacitacionError }}</div>
-              <div class="modal-actions">
-                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar capacitación</button>
-              </div>
-            </form>
-          </template>
-
-          <!-- Nueva evaluación -->
-          <template v-if="modal.type === 'evaluacion'">
-            <h3 class="modal-title">Nueva evaluación de desempeño</h3>
-            <p class="modal-subtitle">Inicia el proceso de evaluación para un colaborador</p>
-            <form class="modal-form" @submit.prevent="modal.open = false">
-              <div class="form-row">
                 <div class="form-field">
-                  <label>Colaborador a evaluar <span class="req">*</span></label>
-                  <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-                </div>
-                <div class="form-field">
-                  <label>Evaluador <span class="req">*</span></label>
-                  <select required><option value="">Seleccionar</option><option v-for="e in employees" :key="e.id">{{ e.name }}</option></select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-field">
-                  <label>Período <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Trimestral</option>
-                    <option>Semestral</option>
-                    <option>Anual</option>
-                  </select>
-                </div>
-                <div class="form-field">
-                  <label>Tipo de evaluación <span class="req">*</span></label>
-                  <select required>
-                    <option value="">Seleccionar</option>
-                    <option>Autoevaluación</option>
-                    <option>Jefatura</option>
-                    <option>180°</option>
-                    <option>360°</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-field"><label>Fecha programada <span class="req">*</span></label><DatePicker required /></div>
-
-              <div class="form-section-title" style="margin-top:4px">Competencias a evaluar</div>
-              <div class="eval-competencias">
-                <div class="comp-item" v-for="comp in ['Trabajo en equipo','Liderazgo','Comunicación','Productividad','Servicio al asociado']" :key="comp">
-                  <span class="comp-label">{{ comp }}</span>
-                  <div class="comp-stars">
-                    <button type="button" v-for="n in 5" :key="n" class="star-btn">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C5D5E5" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                    </button>
+                  <label>Tipo</label>
+                  <div class="checkbox-group" style="flex-direction:row; gap:16px; padding-top:6px;">
+                    <label class="checkbox-item"><input type="radio" :value="false" v-model="capacitacionForm.obligatoria" /> Opcional</label>
+                    <label class="checkbox-item"><input type="radio" :value="true" v-model="capacitacionForm.obligatoria" /> Obligatoria</label>
                   </div>
                 </div>
               </div>
 
-              <div class="form-field"><label>Objetivos / Metas del período</label><textarea rows="3" placeholder="Describe las metas individuales o indicadores del colaborador..."></textarea></div>
-              <div class="form-field"><label>Observaciones generales</label><textarea rows="2" placeholder="Notas del evaluador..."></textarea></div>
+              <p class="exp-hint" style="margin-top:6px;">Instructor / proveedor</p>
+              <div class="form-field">
+                <label class="checkbox-item"><input type="checkbox" v-model="capacitacionForm.instructorExterno" /> Es un instructor externo</label>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Nombre</label><input v-model="capacitacionForm.instructorNombre" type="text" placeholder="Nombre del facilitador" /></div>
+                <div class="form-field"><label>Institución</label><input v-model="capacitacionForm.instructorInstitucion" type="text" placeholder="Empresa o institución" /></div>
+              </div>
+              <div class="form-row">
+                <div class="form-field"><label>Correo</label><input v-model="capacitacionForm.instructorCorreo" type="email" placeholder="correo@ejemplo.com" /></div>
+                <div class="form-field"><label>Teléfono</label><input v-model="capacitacionForm.instructorTelefono" type="text" placeholder="0000-0000" /></div>
+              </div>
+
+              <div class="form-field">
+                <label>Departamentos participantes</label>
+                <div class="checkbox-group">
+                  <label v-for="d in departamentos" :key="d.id" class="checkbox-item">
+                    <input type="checkbox" :value="d.id" v-model="capacitacionForm.departamentosIds" /> {{ d.nombre }}
+                  </label>
+                  <p v-if="!departamentos.length" class="exp-hint">No hay departamentos registrados. Déjalo vacío para incluir a todos.</p>
+                </div>
+              </div>
+              <div class="form-field"><label>Descripción</label><textarea v-model="capacitacionForm.descripcion" rows="3" placeholder="Objetivos, contenido o notas sobre la capacitación..."></textarea></div>
+
+              <div v-if="modal.data" class="form-field">
+                <label>Plan de capacitación y documentación asociada</label>
+                <div class="checkbox-group" style="flex-direction:row; align-items:center;">
+                  <input type="file" @change="onCapDocArchivoChange" style="max-width:220px;" />
+                  <button type="button" class="btn-outline" :disabled="!capDocArchivoNuevo || subiendoCapDoc" @click="subirCapDoc">{{ subiendoCapDoc ? 'Subiendo...' : '+ Adjuntar' }}</button>
+                </div>
+                <ul class="exp-mini-list">
+                  <li v-if="!documentosCapacitacion.length" class="exp-mini-empty">Sin documentos adjuntos.</li>
+                  <li v-for="d in documentosCapacitacion" :key="d.id" class="exp-mini-item">
+                    <span>{{ d.nombre }}</span>
+                    <div style="display:flex; gap:4px;">
+                      <button type="button" class="action-btn" title="Descargar" @click="descargarCapDoc(d)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </button>
+                      <button type="button" class="action-btn action-btn--red" title="Eliminar" @click="quitarCapDoc(d)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+              <p v-else class="exp-hint">Guarda la capacitación primero para poder adjuntar el plan de capacitación y otros documentos.</p>
+
+              <div v-if="capacitacionError" class="req" style="font-size:12.5px;">{{ capacitacionError }}</div>
               <div class="modal-actions">
                 <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
-                <button type="submit" class="btn-primary">Crear evaluación</button>
+                <button type="submit" class="btn-primary" :disabled="capacitacionGuardando">{{ capacitacionGuardando ? 'Guardando...' : 'Guardar capacitación' }}</button>
               </div>
             </form>
+          </template>
+
+          <!-- Confirmar eliminación de capacitación -->
+          <template v-if="modal.type === 'eliminar-capacitacion'">
+            <h3 class="modal-title">Eliminar capacitación</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar <strong>{{ modal.data?.nombre }}</strong>? Se eliminará también el registro de asistencia asociado.
+            </p>
+            <div v-if="eliminarCapacitacionError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarCapacitacionError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoCapacitacion" @click="eliminarCapacitacionConfirmada">
+                {{ eliminandoCapacitacion ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Gestionar asistentes de una capacitación -->
+          <template v-if="modal.type === 'asistentes-capacitacion'">
+            <h3 class="modal-title">Asistentes</h3>
+            <p class="modal-subtitle">{{ modal.data?.nombre }} · marca la asistencia, la nota y el certificado de cada colaborador</p>
+
+            <div class="form-row" style="align-items:flex-end;">
+              <div class="form-field form-field--full">
+                <label>Agregar colaborador</label>
+                <select v-model="asistenteNuevoId">
+                  <option value="">Seleccionar</option>
+                  <option v-for="e in empleadosSinAsistencia" :key="e.id" :value="e.id">{{ e.name }}</option>
+                </select>
+              </div>
+              <button type="button" class="btn-outline" style="white-space:nowrap;" :disabled="!asistenteNuevoId || agregandoAsistente" @click="agregarAsistente">+ Agregar</button>
+            </div>
+
+            <ul class="exp-mini-list">
+              <li v-if="!asistentesCapacitacion.length" class="exp-mini-empty">Todavía no hay colaboradores registrados en esta capacitación.</li>
+              <li v-for="a in asistentesCapacitacion" :key="a.id" class="exp-mini-item">
+                <div>
+                  <strong>{{ a.nombre }}</strong>
+                  <select v-model="a.estadoAsistencia" @change="actualizarAsistente(a)" style="margin-top:4px; height:30px; font-size:12.5px;">
+                    <option value="">Sin marcar</option>
+                    <option value="asistio">Asistió</option>
+                    <option value="no_asistio">No asistió</option>
+                    <option value="justificada">Justificada</option>
+                    <option value="parcial">Asistencia parcial</option>
+                  </select>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <input v-model="a.calificacion" @change="actualizarAsistente(a)" type="number" min="0" max="100" placeholder="Nota" style="width:70px; height:32px; padding:0 8px; border:1.5px solid #D4E4F4; border-radius:6px;" />
+                  <button type="button" class="action-btn" :class="{ 'action-btn--green': a.numeroCertificado }" title="Certificado" @click="abrirCertificadoAsistente(a)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5L17 22l-5-3-5 3 1.5-8.5"/></svg>
+                  </button>
+                  <button type="button" class="action-btn action-btn--red" title="Quitar" @click="quitarAsistente(a)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <div v-if="asistentesError" class="req" style="font-size:12.5px;">{{ asistentesError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cerrar</button>
+              <button type="button" class="btn-outline" :disabled="!asistentesConCertificado.length || exportandoCertificados" @click="exportarCertificados">
+                {{ exportandoCertificados ? 'Generando...' : `Exportar certificados (${asistentesConCertificado.length})` }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Certificado de un asistente -->
+          <template v-if="modal.type === 'certificado-asistente' && asistenteParaCertificado">
+            <h3 class="modal-title">Certificado</h3>
+            <p class="modal-subtitle">{{ asistenteParaCertificado.nombre }} · {{ asignacionCapacitacionActual?.nombre }}</p>
+
+            <div class="form-row">
+              <div class="form-field"><label>Número de certificado</label><input v-model="certificadoForm.numeroCertificado" type="text" placeholder="Ej: CAP-2026-001" /></div>
+              <div class="form-field"><label>Institución</label><input v-model="certificadoForm.certificadoInstitucion" type="text" placeholder="Institución que emite" /></div>
+            </div>
+            <div class="form-row">
+              <div class="form-field"><label>Fecha de emisión</label><DatePicker v-model="certificadoForm.fechaEmisionCertificado" /></div>
+              <div class="form-field"><label>Fecha de vencimiento (si aplica)</label><DatePicker v-model="certificadoForm.fechaVencimientoCertificado" /></div>
+            </div>
+            <div class="form-field">
+              <label>Documento</label>
+              <div v-if="asistenteParaCertificado.documentoCertificadoNombre" class="checkbox-group" style="flex-direction:row; align-items:center; justify-content:space-between;">
+                <span class="exp-hint">{{ asistenteParaCertificado.documentoCertificadoNombre }}</span>
+                <button type="button" class="action-btn" title="Descargar" @click="descargarCertificadoDoc(asistenteParaCertificado)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+              </div>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onCertificadoArchivoChange" />
+            </div>
+            <div v-if="certificadoError" class="req" style="font-size:12.5px;">{{ certificadoError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.type = 'asistentes-capacitacion'">Cancelar</button>
+              <button v-if="asistenteParaCertificado.numeroCertificado || asistenteParaCertificado.documentoCertificadoPath" type="button" class="btn-outline" :disabled="guardandoCertificado" @click="quitarCertificadoAsistente">Quitar certificado</button>
+              <button type="button" class="btn-primary" :disabled="guardandoCertificado" @click="guardarCertificado">{{ guardandoCertificado ? 'Guardando...' : 'Guardar certificado' }}</button>
+            </div>
+          </template>
+
+          <!-- Subir documento institucional -->
+          <template v-if="modal.type === 'doc-institucional'">
+            <h3 class="modal-title">Subir documento</h3>
+            <p class="modal-subtitle">Estará disponible para todo el personal de la cooperativa</p>
+            <form class="modal-form" @submit.prevent="subirDocInstitucional">
+              <div class="form-row">
+                <div class="form-field">
+                  <label>Categoría <span class="req">*</span></label>
+                  <select v-model="docInstForm.categoria" @change="onCategoriaDocInstChange" required>
+                    <option v-for="cat in Object.keys(ESTRUCTURA_DOCUMENTAL)" :key="cat" :value="cat">{{ cat }}</option>
+                    <option value="__otro__">Otro</option>
+                  </select>
+                  <input v-if="docInstForm.categoria === '__otro__'" v-model="docInstForm.categoriaOtro" type="text" placeholder="Nombre de la categoría" style="margin-top:6px;" required />
+                </div>
+                <div class="form-field">
+                  <label>Subcategoría <span class="req">*</span></label>
+                  <select v-if="docInstForm.categoria !== '__otro__'" v-model="docInstForm.subcategoria" required>
+                    <option v-for="sub in ESTRUCTURA_DOCUMENTAL[docInstForm.categoria]" :key="sub" :value="sub">{{ sub }}</option>
+                    <option value="__otro__">Otro</option>
+                  </select>
+                  <input v-if="docInstForm.categoria === '__otro__' || docInstForm.subcategoria === '__otro__'" v-model="docInstForm.subcategoriaOtro" type="text" placeholder="Nombre de la subcategoría" :style="docInstForm.categoria !== '__otro__' ? 'margin-top:6px;' : ''" required />
+                </div>
+              </div>
+              <div class="form-field"><label>Nombre del documento <span class="req">*</span></label><input v-model="docInstForm.nombre" type="text" placeholder="Ej: Reglamento interno de trabajo" required /></div>
+              <div class="form-field"><label>Descripción</label><textarea v-model="docInstForm.descripcion" rows="2" placeholder="Notas sobre el contenido o el alcance del documento..."></textarea></div>
+              <div class="form-field"><label>Archivo <span class="req">*</span></label><input type="file" @change="onDocInstArchivoChange" required /></div>
+              <div v-if="docInstError" class="req" style="font-size:12.5px;">{{ docInstError }}</div>
+              <div class="modal-actions">
+                <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+                <button type="submit" class="btn-primary" :disabled="subiendoDocInst">{{ subiendoDocInst ? 'Subiendo...' : 'Subir documento' }}</button>
+              </div>
+            </form>
+          </template>
+
+          <!-- Confirmar eliminación de documento institucional -->
+          <template v-if="modal.type === 'eliminar-doc-institucional'">
+            <h3 class="modal-title">Eliminar documento</h3>
+            <p class="modal-subtitle">Esta acción no se puede deshacer</p>
+            <p style="font-size:13.5px; color:#4A6070; margin-bottom:18px;">
+              ¿Seguro que deseas eliminar <strong>{{ modal.data?.nombre }}</strong>? Dejará de estar disponible para todo el personal.
+            </p>
+            <div v-if="eliminarDocInstError" class="req" style="font-size:12.5px; margin-bottom:10px;">{{ eliminarDocInstError }}</div>
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="modal.open = false">Cancelar</button>
+              <button type="button" class="btn-primary btn-primary--danger" :disabled="eliminandoDocInst" @click="eliminarDocInstitucionalConfirmado">
+                {{ eliminandoDocInst ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
           </template>
 
         </div>
@@ -1206,22 +2186,56 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted, watch } from 'vue'
-import { exportCSV, exportPDF } from '../composables/useExport.js'
-import { useRole } from '../composables/useRole.js'
+import { exportExcel, exportPDF, exportExpedientePDF, exportBoletaVacacion, exportBoletaPermiso, exportBoletaIncapacidad, exportCertificadosCapacitacionZip } from '../composables/useExport.js'
 import { useAuth } from '../composables/useAuth.js'
 import { usePersonal } from '../composables/usePersonal.js'
+import { useCatalogosPersonal } from '../composables/useCatalogosPersonal.js'
+import { useDocumentos, estadoVencimiento } from '../composables/useDocumentos.js'
+import { useDocumentosInstitucionales } from '../composables/useDocumentosInstitucionales.js'
+import { useFeriados } from '../composables/useFeriados.js'
+import { useInvitaciones } from '../composables/useInvitaciones.js'
+import EvaluacionesPanel from '../components/EvaluacionesPanel.vue'
 import { isSupabaseConfigured } from '../lib/supabase.js'
 import DatePicker from '../components/DatePicker.vue'
+import TimePicker from '../components/TimePicker.vue'
+import { PROVINCIAS_CR, cantonesDe, distritosDe } from '../data/ubicacionesCR.js'
+import { readXlsxRows } from '../utils/xlsxReader.js'
 
-const { isAdmin, isOperador } = useRole()
-const { cooperativaId } = useAuth()
+const { cooperativaId, currentUser } = useAuth()
 const {
-  listDepartamentos, listCargos, listEmpleados, createEmpleado, updateEmpleado,
-  findOrCreateDepartamento, findOrCreateCargo,
-  listPermisos, crearPermiso, resolverPermiso, listCapacitaciones, crearCapacitacion,
+  listDepartamentos, listCargos, listEmpleados, createEmpleado, updateEmpleado, eliminarEmpleado,
+  findOrCreateCargo, listPerfilesCooperativa,
+  listCapacitaciones, crearCapacitacion, actualizarCapacitacion, eliminarCapacitacion,
+  listAsistentesCapacitacion, agregarAsistenteCapacitacion, actualizarAsistenteCapacitacion, quitarAsistenteCapacitacion,
+  guardarCertificadoAsistente, eliminarCertificadoAsistente,
+  sincronizarCertificacionCapacitacion, quitarCertificacionCapacitacion,
+  listDocumentosCapacitacion, subirDocumentoCapacitacion, eliminarDocumentoCapacitacion,
+  listPermisosSolicitudes, crearPermisoSolicitud, actualizarPermisoSolicitud, resolverPermisoSolicitud, eliminarPermisoSolicitud,
+  subirDocumentoPermiso, eliminarDocumentoPermiso,
+  listIncapacidades, crearIncapacidad, actualizarIncapacidad, registrarReincorporacion, anularIncapacidad, eliminarIncapacidad,
+  subirDocumentoIncapacidad, eliminarDocumentoIncapacidad,
+  listVacaciones, crearSolicitudVacaciones, actualizarSolicitudVacaciones, resolverVacacionSolicitud, eliminarVacacionSolicitud,
+  subirDocumentoVacacion, eliminarDocumentoVacacion,
+  listContactosEmergencia, crearContactoEmergencia, eliminarContactoEmergencia,
+  listContratos, crearContrato,
+  listFormacionAcademica, crearFormacionAcademica, eliminarFormacionAcademica,
+  listColegiaturas, crearColegiatura, eliminarColegiatura,
+  listCertificacionesProfesionales, crearCertificacionProfesional, eliminarCertificacionProfesional,
+  listCursosColaborador, crearCursoColaborador, eliminarCursoColaborador,
+  getDatosBancarios, guardarDatosBancarios,
+  listMovimientos, crearMovimiento,
+  listSalidas, registrarSalida,
+  listAuditoria, registrarAuditoria,
+  getConfiguracionAsistencia, guardarConfiguracionAsistencia, calcularTardanza,
+  getMiEmpleado, getMarcacionDeHoy, marcarEntrada, marcarSalida,
+  listMarcaciones, importarMarcacionesMasivo, confirmarImportacionMasiva,
 } = usePersonal()
-
-const ANA_ID = 3
+const { listByTipo: listCatalogo, findOrCreate: findOrCreateCatalogo } = useCatalogosPersonal()
+const { listFeriados } = useFeriados()
+const { crearInvitacion } = useInvitaciones()
+const { listDocumentos, subirDocumento, eliminarDocumento, getUrlDescarga, descargarArchivo, eliminarArchivosDelEmpleado } = useDocumentos()
+const { ESTRUCTURA_DOCUMENTAL, listDocumentosInstitucionales, subirDocumentoInstitucional, eliminarDocumentoInstitucional, getUrlDescargaInstitucional } = useDocumentosInstitucionales()
+const vencimientoInfo = estadoVencimiento
 
 const activeTab = ref('dashboard')
 const search = ref('')
@@ -1230,6 +2244,89 @@ const filterStatus = ref('')
 const selectedEmp = ref(null)
 
 const modal = reactive({ open: false, type: '', data: null })
+
+function nombreEnCatalogo(id, lista) {
+  return lista.find((x) => x.id === id)?.nombre || ''
+}
+
+function nombreCompleto(emp) {
+  if (!emp) return ''
+  return [emp.name, emp.primerApellido, emp.segundoApellido].filter(Boolean).join(' ')
+}
+
+function empleadoInfoPara(empleadoId) {
+  const emp = employees.value.find((e) => e.id === empleadoId)
+  if (!emp) return {}
+  return {
+    name: nombreCompleto(emp),
+    codigo: emp.codigoInterno || '—',
+    departamento: emp.dept || '—',
+    puesto: emp.role || '—',
+  }
+}
+
+async function exportarBoletaVacacion(v) {
+  await exportBoletaVacacion(v, empleadoInfoPara(v.empleadoId))
+}
+
+async function exportarBoletaPermiso(p) {
+  await exportBoletaPermiso(p, empleadoInfoPara(p.empleadoId))
+}
+
+async function exportarBoletaIncapacidad(inc) {
+  await exportBoletaIncapacidad(inc, empleadoInfoPara(inc.empleadoId))
+}
+
+const expedientesSearch = ref('')
+const filteredExpedientesEmployees = computed(() => {
+  const q = expedientesSearch.value.trim().toLowerCase()
+  if (!q) return employees.value
+  return employees.value.filter((e) => nombreCompleto(e).toLowerCase().includes(q) || e.role.toLowerCase().includes(q))
+})
+
+/* ── Panel de detalle (pestaña Expedientes): datos de solo lectura ── */
+const dContactos = ref([])
+const dContratos = ref([])
+const dFormacionAcademica = ref([])
+const dColegiaturas = ref([])
+const dCertificaciones = ref([])
+const dCursos = ref([])
+const dBancarios = reactive({ banco: '', tipo_cuenta: '', numero_cuenta: '', iban: '', moneda: 'CRC', estado: 'activa' })
+const dBancariosSinAcceso = ref(false)
+
+async function cargarExpedienteDetalle(empleadoId) {
+  const [c, ct, f, cg, cert, cur, banc] = await Promise.all([
+    listContactosEmergencia(empleadoId), listContratos(empleadoId),
+    listFormacionAcademica(empleadoId), listColegiaturas(empleadoId),
+    listCertificacionesProfesionales(empleadoId), listCursosColaborador(empleadoId),
+    getDatosBancarios(empleadoId),
+  ])
+  dContactos.value = c.data || []
+  dContratos.value = ct.data || []
+  dFormacionAcademica.value = f.data || []
+  dColegiaturas.value = cg.data || []
+  dCertificaciones.value = cert.data || []
+  dCursos.value = cur.data || []
+  dBancariosSinAcceso.value = !!banc.error
+  Object.assign(dBancarios, { banco: '', tipo_cuenta: '', numero_cuenta: '', iban: '', moneda: 'CRC', estado: 'activa' }, banc.data || {})
+}
+
+watch(selectedEmp, (emp) => {
+  if (emp?.id) cargarExpedienteDetalle(emp.id)
+})
+
+async function exportarExpedientePDF() {
+  if (!selectedEmp.value) return
+  await exportExpedientePDF(selectedEmp.value, {
+    contactos: dContactos.value,
+    contratos: dContratos.value,
+    formacionAcademica: dFormacionAcademica.value,
+    colegiaturas: dColegiaturas.value,
+    certificaciones: dCertificaciones.value,
+    cursos: dCursos.value,
+    bancarios: dBancariosSinAcceso.value ? null : dBancarios,
+  })
+}
 
 function ddmmyyyyToInputDate(d) {
   if (!d) return ''
@@ -1249,31 +2346,140 @@ function initialsFromName(name) {
 const AVATAR_COLORS = ['#133C65', '#1A9152', '#7B3FA0', '#C47F0C', '#C0392B', '#1565C0', '#00808C']
 
 const EMPTY_EMP_FORM = {
-  nombre: '', identificacion: '', fechaNacimiento: '', genero: 'Femenino',
-  telefono: '', correo: '', direccion: '',
-  puesto: '', departamento: '', fechaIngreso: '', tipoContrato: 'Tiempo completo',
+  nombre: '', primerApellido: '', segundoApellido: '', tipoIdentificacion: 'Cédula nacional',
+  identificacion: '', fechaNacimiento: '', nacionalidad: 'Costarricense', genero: 'Femenino', estadoCivil: '',
+  telefono: '', telefonoSecundario: '', correoPersonal: '', correoInstitucional: '', correo: '',
+  provincia: '', canton: '', distrito: '', direccionExacta: '', direccion: '',
+  puesto: '', departamentoId: '', fechaIngreso: '', tipoContrato: 'Tiempo completo',
   salario: '', activo: 'true',
+  codigoInterno: '', jefeInmediatoId: '', sedeId: '', jornadaId: '', horarioId: '', moneda: 'CRC', formaPago: '',
+  profileId: '',
 }
 const empForm = reactive({ ...EMPTY_EMP_FORM })
+const empCantonesDisponibles = computed(() => cantonesDe(empForm.provincia))
+const empDistritosDisponibles = computed(() => distritosDe(empForm.provincia, empForm.canton))
+
+/* ── Expediente: pestañas dentro del modal ── */
+const EXPEDIENTE_TABS = [
+  { key: 'personal', label: 'Información personal' },
+  { key: 'laboral', label: 'Información laboral' },
+  { key: 'contactos', label: 'Contactos de emergencia', requiresSaved: true },
+  { key: 'contratos', label: 'Contratos', requiresSaved: true },
+  { key: 'academica', label: 'Formación académica', requiresSaved: true },
+  { key: 'certificaciones', label: 'Certificaciones', requiresSaved: true },
+  { key: 'bancaria', label: 'Información bancaria', requiresSaved: true },
+  { key: 'documentos', label: 'Documentos', requiresSaved: true },
+  { key: 'historial', label: 'Historial laboral', requiresSaved: true },
+  { key: 'salida', label: 'Salida', requiresSaved: true },
+  { key: 'auditoria', label: 'Auditoría', requiresSaved: true },
+]
+const expedienteTab = ref('personal')
+const expedienteTabLocked = computed(() => {
+  const t = EXPEDIENTE_TABS.find((x) => x.key === expedienteTab.value)
+  return !!(t?.requiresSaved && !modal.data?.id)
+})
+
+const sedes = ref([])
+const tiposContratacion = ref([])
+const jornadas = ref([])
+const horarios = ref([])
+const institucionesEducativas = ref([])
+const colegiosProfesionales = ref([])
+const tiposDocumento = ref([])
+const tiposMovimiento = ref([])
+const tiposSalida = ref([])
+const categoriasCapacitacion = ref([])
+const modalidadesCapacitacion = ref([])
+
+async function cargarCatalogosExpediente() {
+  const [sedesR, tcR, jorR, horR, insR, colR, tdR, tmR, tsR, tvR, tpR, tiR, ieR, ccR, mcR] = await Promise.all([
+    listCatalogo('sede'), listCatalogo('tipo_contratacion'), listCatalogo('jornada'),
+    listCatalogo('horario'), listCatalogo('institucion_educativa'), listCatalogo('colegio_profesional'),
+    listCatalogo('tipo_documento'), listCatalogo('tipo_movimiento'), listCatalogo('tipo_salida'),
+    listCatalogo('tipo_vacacion'), listCatalogo('tipo_permiso'),
+    listCatalogo('tipo_incapacidad'), listCatalogo('institucion_emisora'),
+    listCatalogo('categoria_capacitacion'), listCatalogo('modalidad_capacitacion'),
+  ])
+  sedes.value = sedesR.data || []
+  tiposContratacion.value = tcR.data || []
+  jornadas.value = jorR.data || []
+  horarios.value = horR.data || []
+  institucionesEducativas.value = insR.data || []
+  colegiosProfesionales.value = colR.data || []
+  tiposDocumento.value = tdR.data || []
+  tiposMovimiento.value = tmR.data || []
+  tiposSalida.value = tsR.data || []
+  tiposVacacion.value = tvR.data || []
+  tiposPermiso.value = tpR.data || []
+  tiposIncapacidad.value = tiR.data || []
+  institucionesEmisoras.value = ieR.data || []
+  categoriasCapacitacion.value = ccR.data || []
+  modalidadesCapacitacion.value = mcR.data || []
+}
+
+const jefeOptions = computed(() => employees.value.filter((e) => e.id !== modal.data?.id))
+
+// Personal habilitado para figurar como "Quién aprueba" en solicitudes de
+// vacaciones/permisos: únicamente Gerencia General y Administración.
+const aprobadoresDisponibles = computed(() => employees.value.filter((e) => e.active && ['Gerencia General', 'Administración'].includes(e.dept)))
+
+function selectExpedienteTab(tab) {
+  expedienteTab.value = tab.key
+  if (tab.requiresSaved && !modal.data?.id) return
+  if (tab.key === 'contactos') cargarContactos()
+  else if (tab.key === 'contratos') cargarContratos()
+  else if (tab.key === 'academica') { cargarFormacionAcademica(); cargarColegiaturas() }
+  else if (tab.key === 'certificaciones') { cargarCertificaciones(); cargarCursos() }
+  else if (tab.key === 'bancaria') cargarDatosBancarios()
+  else if (tab.key === 'documentos') cargarDocumentos()
+  else if (tab.key === 'historial') cargarMovimientos()
+  else if (tab.key === 'salida') cargarSalidas()
+  else if (tab.key === 'auditoria') cargarAuditoria()
+}
 
 function openModal(type, data = null) {
   modal.type = type
   modal.data = data
+  expedienteTab.value = 'personal'
+  mostrarInvitarUsuario.value = false
+  invitarEmail.value = ''
+  invitarError.value = null
+  invitarEnlace.value = ''
   if (type === 'editar' && data) {
     Object.assign(empForm, {
       nombre: data.name || '',
+      primerApellido: data.primerApellido || '',
+      segundoApellido: data.segundoApellido || '',
+      tipoIdentificacion: data.tipoIdentificacion || 'Cédula nacional',
       identificacion: data.identificacion || '',
       fechaNacimiento: data.fechaNacimiento || '',
+      nacionalidad: data.nacionalidad || 'Costarricense',
       genero: data.genero || 'Femenino',
+      estadoCivil: data.estadoCivil || '',
       telefono: data.telefono || '',
+      telefonoSecundario: data.telefonoSecundario || '',
+      correoPersonal: data.correoPersonal || '',
+      correoInstitucional: data.correoInstitucional || '',
       correo: data.correo || '',
+      provincia: data.provincia || '',
+      canton: data.canton || '',
+      distrito: data.distrito || '',
+      direccionExacta: data.direccionExacta || '',
       direccion: data.direccion || '',
       puesto: data.role || '',
-      departamento: data.dept || '',
+      departamentoId: data.departamentoId || '',
       fechaIngreso: ddmmyyyyToInputDate(data.date),
       tipoContrato: data.tipoContrato || 'Tiempo completo',
       salario: data.salario || '',
       activo: String(data.active),
+      codigoInterno: data.codigoInterno || '',
+      jefeInmediatoId: data.jefeInmediatoId || '',
+      sedeId: data.sedeId || '',
+      jornadaId: data.jornadaId || '',
+      horarioId: data.horarioId || '',
+      moneda: data.moneda || 'CRC',
+      formaPago: data.formaPago || '',
+      profileId: data.profileId || '',
     })
   } else if (type === 'nuevo') {
     Object.assign(empForm, EMPTY_EMP_FORM)
@@ -1300,7 +2506,7 @@ async function guardarEmpleado() {
           correo: empForm.correo,
           direccion: empForm.direccion,
           role: empForm.puesto,
-          dept: empForm.departamento,
+          dept: departamentos.value.find((d) => d.id === empForm.departamentoId)?.nombre || emp.dept,
           date: inputDateToDdmmyyyy(empForm.fechaIngreso) || emp.date,
           tipoContrato: empForm.tipoContrato,
           salario: empForm.salario,
@@ -1321,7 +2527,7 @@ async function guardarEmpleado() {
         correo: empForm.correo,
         direccion: empForm.direccion,
         role: empForm.puesto,
-        dept: empForm.departamento,
+        dept: departamentos.value.find((d) => d.id === empForm.departamentoId)?.nombre || '',
         date: inputDateToDdmmyyyy(empForm.fechaIngreso) || '—',
         tipoContrato: empForm.tipoContrato,
         salario: empForm.salario,
@@ -1335,21 +2541,410 @@ async function guardarEmpleado() {
   empFormSaving.value = true
   empFormError.value = null
 
-  const { data: depto, error: deptoErr } = await findOrCreateDepartamento(cooperativaId.value, empForm.departamento)
-  if (deptoErr) { empFormSaving.value = false; empFormError.value = deptoErr.message; return }
-  const { data: cargo, error: cargoErr } = await findOrCreateCargo(cooperativaId.value, empForm.puesto, depto?.id)
+  const deptoId = empForm.departamentoId || null
+  const { data: cargo, error: cargoErr } = await findOrCreateCargo(cooperativaId.value, empForm.puesto, deptoId)
   if (cargoErr) { empFormSaving.value = false; empFormError.value = cargoErr.message; return }
 
-  const payload = { ...empForm, cargoId: cargo?.id, departamentoId: depto?.id, activo }
-  const { error } = modal.type === 'editar' && modal.data
+  const payload = { ...empForm, cargoId: cargo?.id, departamentoId: deptoId, activo }
+  const isEdit = modal.type === 'editar' && modal.data
+  const before = isEdit ? { cargoId: modal.data.cargoId, departamentoId: modal.data.departamentoId, salario: modal.data.salario } : null
+
+  const { data: saved, error } = isEdit
     ? await updateEmpleado(modal.data.id, payload)
     : await createEmpleado(cooperativaId.value, payload)
 
   empFormSaving.value = false
   if (error) { empFormError.value = error.message; return }
 
-  await loadEmpleados()
+  await Promise.all([loadEmpleados(), loadCatalogos()])
+
+  const empleadoId = isEdit ? modal.data.id : saved.id
+  const after = { cargoId: cargo?.id, departamentoId: deptoId, salario: Number(payload.salario) || 0 }
+
+  const { error: auditError } = await registrarAuditoria(cooperativaId.value, currentUser.value?.id, isEdit ? 'actualizar' : 'crear', empleadoId, before, after)
+  if (auditError) console.warn('[Auditoría] no se pudo registrar:', auditError.message)
+
+  if (isEdit) {
+    await registrarMovimientoSiCambio(empleadoId, before, after)
+  } else if (saved) {
+    const { data: tipoIngreso } = await findOrCreateCatalogo(cooperativaId.value, 'tipo_movimiento', 'Ingreso')
+    await crearMovimiento(cooperativaId.value, saved.id, {
+      fecha: payload.fechaIngreso || new Date().toISOString().slice(0, 10),
+      tipo_movimiento_id: tipoIngreso?.id || null,
+      puesto_nuevo_id: cargo?.id || null,
+      departamento_nuevo_id: depto?.id || null,
+      salario_nuevo: after.salario,
+      motivo: 'Ingreso a la cooperativa',
+      realizado_por: currentUser.value?.id || null,
+    })
+  }
+
+  // Tras crear, el modal pasa a modo "editar" con el id real —
+  // así se habilitan las demás pestañas sin cerrar el modal.
+  if (!isEdit && saved) {
+    modal.type = 'editar'
+    modal.data = employees.value.find((e) => e.id === saved.id) || saved
+  }
+}
+
+/* ── Eliminar colaborador ── */
+const eliminandoEmpleado = ref(false)
+const eliminarEmpleadoError = ref(null)
+
+function confirmarEliminarEmpleado(emp) {
+  modal.type = 'eliminar'
+  modal.data = emp
+  eliminarEmpleadoError.value = null
+  modal.open = true
+}
+
+async function eliminarEmpleadoConfirmado() {
+  if (!modal.data) return
+  eliminandoEmpleado.value = true
+  eliminarEmpleadoError.value = null
+
+  await eliminarArchivosDelEmpleado(modal.data.id)
+  const { error } = await eliminarEmpleado(modal.data.id)
+
+  eliminandoEmpleado.value = false
+  if (error) { eliminarEmpleadoError.value = error.message; return }
+
+  if (selectedEmp.value?.id === modal.data.id) selectedEmp.value = null
   modal.open = false
+  await loadEmpleados()
+}
+
+/* ── Contactos de emergencia ── */
+const contactos = ref([])
+const EMPTY_CONTACTO = { nombre_completo: '', parentesco: '', telefono_principal: '', telefono_secundario: '', correo: '', es_principal: false, observaciones: '' }
+const nuevoContacto = reactive({ ...EMPTY_CONTACTO })
+const contactoError = ref(null)
+
+async function cargarContactos() {
+  const { data, error } = await listContactosEmergencia(modal.data.id)
+  if (error) { contactoError.value = error.message; return }
+  contactos.value = data || []
+}
+async function agregarContacto() {
+  if (!nuevoContacto.nombre_completo.trim()) return
+  contactoError.value = null
+  const { error } = await crearContactoEmergencia(cooperativaId.value, modal.data.id, { ...nuevoContacto })
+  if (error) { contactoError.value = error.message; return }
+  Object.assign(nuevoContacto, EMPTY_CONTACTO)
+  await cargarContactos()
+}
+async function quitarContacto(id) {
+  await eliminarContactoEmergencia(id)
+  await cargarContactos()
+}
+
+/* ── Contratos laborales ── */
+const contratos = ref([])
+const EMPTY_CONTRATO = { tipo_contrato_id: '', numero_contrato: '', fecha_inicio: '', fecha_fin: '', salario_pactado: '', periodo_prueba: false, estado_contrato: 'vigente', observaciones: '' }
+const nuevoContrato = reactive({ ...EMPTY_CONTRATO })
+const contratoError = ref(null)
+
+async function cargarContratos() {
+  const { data, error } = await listContratos(modal.data.id)
+  if (error) { contratoError.value = error.message; return }
+  contratos.value = data || []
+}
+async function agregarContrato() {
+  if (!nuevoContrato.fecha_inicio) return
+  contratoError.value = null
+  const payload = { ...nuevoContrato, salario_pactado: Number(nuevoContrato.salario_pactado) || null, fecha_fin: nuevoContrato.fecha_fin || null, tipo_contrato_id: nuevoContrato.tipo_contrato_id || null }
+  const { error } = await crearContrato(cooperativaId.value, modal.data.id, payload)
+  if (error) { contratoError.value = error.message; return }
+  Object.assign(nuevoContrato, EMPTY_CONTRATO)
+  await cargarContratos()
+}
+
+/* ── Formación académica y colegiaturas ── */
+const formacionAcademica = ref([])
+const EMPTY_FORMACION = { nivel_academico: '', profesion: '', especialidad: '', institucionEducativa: '', titulo_obtenido: '', fecha_graduacion: '' }
+const nuevaFormacion = reactive({ ...EMPTY_FORMACION })
+const formacionArchivo = ref(null)
+const formacionError = ref(null)
+const NIVELES_ACADEMICOS = ['Primaria', 'Secundaria', 'Técnico', 'Diplomado', 'Bachillerato universitario', 'Licenciatura', 'Maestría', 'Doctorado']
+
+async function cargarFormacionAcademica() {
+  const { data, error } = await listFormacionAcademica(modal.data.id)
+  if (error) { formacionError.value = error.message; return }
+  formacionAcademica.value = data || []
+}
+function onFormacionArchivoChange(e) { formacionArchivo.value = e.target.files[0] || null }
+async function agregarFormacionAcademica() {
+  if (!nuevaFormacion.nivel_academico) return
+  formacionError.value = null
+  const { institucionEducativa, ...rest } = nuevaFormacion
+  const { data: institucion, error: instErr } = await findOrCreateCatalogo(cooperativaId.value, 'institucion_educativa', institucionEducativa)
+  if (instErr) { formacionError.value = instErr.message; return }
+  let documentoId = null
+  if (formacionArchivo.value) {
+    const { data: doc, error: docErr } = await subirDocumento(cooperativaId.value, modal.data.id, formacionArchivo.value, { nombre: formacionArchivo.value.name })
+    if (docErr) { formacionError.value = docErr.message; return }
+    documentoId = doc.id
+  }
+  const payload = { ...rest, fecha_graduacion: nuevaFormacion.fecha_graduacion || null, institucion_educativa_id: institucion?.id || null, documento_id: documentoId }
+  const { error } = await crearFormacionAcademica(cooperativaId.value, modal.data.id, payload)
+  if (error) { formacionError.value = error.message; return }
+  Object.assign(nuevaFormacion, EMPTY_FORMACION)
+  formacionArchivo.value = null
+  await Promise.all([cargarFormacionAcademica(), cargarCatalogosExpediente()])
+}
+async function quitarFormacionAcademica(id) {
+  await eliminarFormacionAcademica(id)
+  await cargarFormacionAcademica()
+}
+
+const colegiaturas = ref([])
+const EMPTY_COLEGIATURA = { colegioProfesional: '', numero_colegiado: '', fecha_incorporacion: '', estado: 'vigente', fecha_vencimiento: '' }
+const nuevaColegiatura = reactive({ ...EMPTY_COLEGIATURA })
+const colegiaturaError = ref(null)
+
+async function cargarColegiaturas() {
+  const { data, error } = await listColegiaturas(modal.data.id)
+  if (error) { colegiaturaError.value = error.message; return }
+  colegiaturas.value = data || []
+}
+async function agregarColegiatura() {
+  if (!nuevaColegiatura.colegioProfesional.trim()) return
+  colegiaturaError.value = null
+  const { colegioProfesional, ...rest } = nuevaColegiatura
+  const { data: colegio, error: colErr } = await findOrCreateCatalogo(cooperativaId.value, 'colegio_profesional', colegioProfesional)
+  if (colErr) { colegiaturaError.value = colErr.message; return }
+  const payload = { ...rest, fecha_incorporacion: nuevaColegiatura.fecha_incorporacion || null, fecha_vencimiento: nuevaColegiatura.fecha_vencimiento || null, colegio_profesional_id: colegio?.id || null }
+  const { error } = await crearColegiatura(cooperativaId.value, modal.data.id, payload)
+  if (error) { colegiaturaError.value = error.message; return }
+  Object.assign(nuevaColegiatura, EMPTY_COLEGIATURA)
+  await Promise.all([cargarColegiaturas(), cargarCatalogosExpediente()])
+}
+async function quitarColegiatura(id) {
+  await eliminarColegiatura(id)
+  await cargarColegiaturas()
+}
+
+/* ── Certificaciones y cursos ── */
+const certificacionesProfesionales = ref([])
+const EMPTY_CERTIFICACION = { nombre: '', institucion_certificadora: '', fecha_emision: '', fecha_vencimiento: '', estado: 'vigente' }
+const nuevaCertificacion = reactive({ ...EMPTY_CERTIFICACION })
+const certificacionArchivo = ref(null)
+const certificacionError = ref(null)
+
+async function cargarCertificaciones() {
+  const { data, error } = await listCertificacionesProfesionales(modal.data.id)
+  if (error) { certificacionError.value = error.message; return }
+  certificacionesProfesionales.value = data || []
+}
+function onCertificacionArchivoChange(e) { certificacionArchivo.value = e.target.files[0] || null }
+async function agregarCertificacion() {
+  if (!nuevaCertificacion.nombre.trim()) return
+  certificacionError.value = null
+  let documentoId = null
+  if (certificacionArchivo.value) {
+    const { data: doc, error: docErr } = await subirDocumento(cooperativaId.value, modal.data.id, certificacionArchivo.value, { nombre: certificacionArchivo.value.name })
+    if (docErr) { certificacionError.value = docErr.message; return }
+    documentoId = doc.id
+  }
+  const payload = { ...nuevaCertificacion, fecha_emision: nuevaCertificacion.fecha_emision || null, fecha_vencimiento: nuevaCertificacion.fecha_vencimiento || null, documento_id: documentoId }
+  const { error } = await crearCertificacionProfesional(cooperativaId.value, modal.data.id, payload)
+  if (error) { certificacionError.value = error.message; return }
+  Object.assign(nuevaCertificacion, EMPTY_CERTIFICACION)
+  certificacionArchivo.value = null
+  await cargarCertificaciones()
+}
+async function quitarCertificacion(id) {
+  await eliminarCertificacionProfesional(id)
+  await cargarCertificaciones()
+}
+
+// Enlace "Ver documento" reutilizado por Formación académica y Certificaciones.
+async function abrirDocumentoAdjunto(path) {
+  if (!path) return
+  const { url, error } = await getUrlDescarga(path)
+  if (error || !url) { certificacionError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+const cursosColaborador = ref([])
+const EMPTY_CURSO = { nombre_curso: '', institucion: '', fecha: '', duracion_horas: '', modalidad: 'Presencial', tiene_certificado: false }
+const nuevoCurso = reactive({ ...EMPTY_CURSO })
+const cursoError = ref(null)
+
+async function cargarCursos() {
+  const { data, error } = await listCursosColaborador(modal.data.id)
+  if (error) { cursoError.value = error.message; return }
+  cursosColaborador.value = data || []
+}
+async function agregarCurso() {
+  if (!nuevoCurso.nombre_curso.trim()) return
+  cursoError.value = null
+  const payload = { ...nuevoCurso, fecha: nuevoCurso.fecha || null, duracion_horas: Number(nuevoCurso.duracion_horas) || null }
+  const { error } = await crearCursoColaborador(cooperativaId.value, modal.data.id, payload)
+  if (error) { cursoError.value = error.message; return }
+  Object.assign(nuevoCurso, EMPTY_CURSO)
+  await cargarCursos()
+}
+async function quitarCurso(id) {
+  await eliminarCursoColaborador(id)
+  await cargarCursos()
+}
+
+/* ── Información bancaria y administrativa (mismo registro 1:1) ── */
+const EMPTY_BANCARIOS = { banco: '', tipo_cuenta: '', numero_cuenta: '', iban: '', moneda: 'CRC', estado: 'activa' }
+const bancariosForm = reactive({ ...EMPTY_BANCARIOS })
+const bancariosError = ref(null)
+const bancariosSaving = ref(false)
+const bancariosSinAcceso = ref(false)
+
+async function cargarDatosBancarios() {
+  bancariosError.value = null
+  bancariosSinAcceso.value = false
+  const { data, error } = await getDatosBancarios(modal.data.id)
+  if (error) { bancariosSinAcceso.value = true; return }
+  Object.assign(bancariosForm, EMPTY_BANCARIOS, data || {})
+}
+async function guardarBancarios() {
+  bancariosSaving.value = true
+  bancariosError.value = null
+  const payload = { ...bancariosForm }
+  delete payload.id; delete payload.created_at; delete payload.updated_at; delete payload.cooperativa_id; delete payload.empleado_id
+  const { error } = await guardarDatosBancarios(cooperativaId.value, modal.data.id, payload)
+  bancariosSaving.value = false
+  if (error) { bancariosError.value = error.message; return }
+}
+
+/* ── Documentos ── */
+const documentos = ref([])
+const nuevoDocumentoFile = ref(null)
+const EMPTY_DOCUMENTO = { tipoDocumentoId: '', nombre: '', fechaEmision: '', fechaVencimiento: '', observaciones: '' }
+const nuevoDocumento = reactive({ ...EMPTY_DOCUMENTO })
+const documentoError = ref(null)
+const documentoSubiendo = ref(false)
+
+async function cargarDocumentos() {
+  const { data, error } = await listDocumentos(modal.data.id)
+  if (error) { documentoError.value = error.message; return }
+  documentos.value = data || []
+}
+function onDocumentoFileChange(e) {
+  nuevoDocumentoFile.value = e.target.files?.[0] || null
+}
+async function subirNuevoDocumento() {
+  if (!nuevoDocumentoFile.value) { documentoError.value = 'Selecciona un archivo primero.'; return }
+  documentoSubiendo.value = true
+  documentoError.value = null
+  const { error } = await subirDocumento(cooperativaId.value, modal.data.id, nuevoDocumentoFile.value, nuevoDocumento)
+  documentoSubiendo.value = false
+  if (error) { documentoError.value = error.message; return }
+  Object.assign(nuevoDocumento, EMPTY_DOCUMENTO)
+  nuevoDocumentoFile.value = null
+  await cargarDocumentos()
+}
+async function descargarDocumento(doc) {
+  const { url, error } = await getUrlDescarga(doc.storage_path)
+  if (!error && url) window.open(url, '_blank')
+}
+async function quitarDocumento(doc) {
+  await eliminarDocumento(doc)
+  await cargarDocumentos()
+}
+
+/* ── Historial laboral ── */
+const movimientos = ref([])
+const EMPTY_MOVIMIENTO = { tipoMovimiento: '', fecha: '', motivo: '' }
+const nuevoMovimiento = reactive({ ...EMPTY_MOVIMIENTO })
+const movimientoError = ref(null)
+
+async function cargarMovimientos() {
+  const { data, error } = await listMovimientos(modal.data.id)
+  if (error) { movimientoError.value = error.message; return }
+  movimientos.value = data || []
+}
+async function agregarMovimiento() {
+  if (!nuevoMovimiento.tipoMovimiento.trim()) return
+  movimientoError.value = null
+  const { data: tipo, error: tipoErr } = await findOrCreateCatalogo(cooperativaId.value, 'tipo_movimiento', nuevoMovimiento.tipoMovimiento)
+  if (tipoErr) { movimientoError.value = tipoErr.message; return }
+  const { error } = await crearMovimiento(cooperativaId.value, modal.data.id, {
+    tipo_movimiento_id: tipo?.id || null,
+    fecha: nuevoMovimiento.fecha || new Date().toISOString().slice(0, 10),
+    motivo: nuevoMovimiento.motivo || null,
+    realizado_por: currentUser.value?.id || null,
+  })
+  if (error) { movimientoError.value = error.message; return }
+  Object.assign(nuevoMovimiento, EMPTY_MOVIMIENTO)
+  await Promise.all([cargarMovimientos(), cargarCatalogosExpediente()])
+}
+
+// Registra automaticamente el cambio de puesto/departamento/salario al
+// editar la informacion laboral. No requiere intervencion del usuario.
+async function registrarMovimientoSiCambio(empleadoId, before, after) {
+  const cambioPuesto = before.cargoId !== after.cargoId
+  const cambioDepto = before.departamentoId !== after.departamentoId
+  const cambioSalario = Number(before.salario) !== Number(after.salario)
+  if (!cambioPuesto && !cambioDepto && !cambioSalario) return
+
+  let tipoNombre = 'Cambio de puesto'
+  if (cambioPuesto && cambioSalario && Number(after.salario) > Number(before.salario)) tipoNombre = 'Ascenso'
+  else if (cambioDepto && !cambioPuesto) tipoNombre = 'Cambio de departamento'
+  else if (cambioSalario && !cambioPuesto) tipoNombre = 'Aumento salarial'
+
+  const { data: tipo } = await findOrCreateCatalogo(cooperativaId.value, 'tipo_movimiento', tipoNombre)
+  await crearMovimiento(cooperativaId.value, empleadoId, {
+    tipo_movimiento_id: tipo?.id || null,
+    puesto_anterior_id: before.cargoId || null,
+    puesto_nuevo_id: after.cargoId || null,
+    departamento_anterior_id: before.departamentoId || null,
+    departamento_nuevo_id: after.departamentoId || null,
+    salario_anterior: Number(before.salario) || 0,
+    salario_nuevo: Number(after.salario) || 0,
+    realizado_por: currentUser.value?.id || null,
+  })
+}
+
+/* ── Salida de la cooperativa ── */
+const salidas = ref([])
+const salidaFecha = ref('')
+const EMPTY_SALIDA = { tipoSalida: '', motivo: '', observaciones: '' }
+const nuevaSalida = reactive({ ...EMPTY_SALIDA })
+const salidaError = ref(null)
+const salidaSaving = ref(false)
+
+async function cargarSalidas() {
+  const { data, error } = await listSalidas(modal.data.id)
+  if (error) { salidaError.value = error.message; return }
+  salidas.value = data || []
+}
+async function registrarSalidaColaborador() {
+  if (!salidaFecha.value || !nuevaSalida.tipoSalida.trim()) { salidaError.value = 'Completa la fecha y el tipo de salida.'; return }
+  salidaSaving.value = true
+  salidaError.value = null
+  const { data: tipo, error: tipoErr } = await findOrCreateCatalogo(cooperativaId.value, 'tipo_salida', nuevaSalida.tipoSalida)
+  if (tipoErr) { salidaSaving.value = false; salidaError.value = tipoErr.message; return }
+  const { error } = await registrarSalida(cooperativaId.value, modal.data.id, {
+    fecha_salida: salidaFecha.value,
+    tipo_salida_id: tipo?.id || null,
+    motivo: nuevaSalida.motivo || null,
+    ultimo_puesto_id: modal.data.cargoId || null,
+    ultimo_salario: Number(modal.data.salario) || null,
+    observaciones: nuevaSalida.observaciones || null,
+    registrado_por: currentUser.value?.id || null,
+  })
+  salidaSaving.value = false
+  if (error) { salidaError.value = error.message; return }
+  Object.assign(nuevaSalida, EMPTY_SALIDA)
+  salidaFecha.value = ''
+  await Promise.all([cargarSalidas(), loadEmpleados()])
+}
+
+/* ── Auditoría ── */
+const auditoria = ref([])
+const auditoriaError = ref(null)
+async function cargarAuditoria() {
+  const { data, error } = await listAuditoria(modal.data.id)
+  if (error) { auditoriaError.value = error.message; return }
+  auditoria.value = data || []
 }
 
 const empleadosLoadError = ref(null)
@@ -1361,29 +2956,54 @@ async function loadEmpleados() {
   employees.value = data || []
 }
 
-onMounted(async () => {
-  await loadEmpleados()
-  if (isOperador.value) {
-    selectedEmp.value = employees.value.find(e => e.id === ANA_ID) ?? null
-    activeTab.value = 'expedientes'
-  }
-})
+const departamentos = ref([])
+const cargos = ref([])
+const profilesCooperativa = ref([])
 
-watch(isOperador, (val) => {
-  if (val) {
-    selectedEmp.value = employees.value.find(e => e.id === ANA_ID) ?? null
-    activeTab.value = 'expedientes'
-  } else {
-    selectedEmp.value = null
-    activeTab.value = 'dashboard'
-  }
+async function loadCatalogos() {
+  const [{ data: deptos }, { data: cargosData }, { data: perfiles }] = await Promise.all([listDepartamentos(), listCargos(), listPerfilesCooperativa(cooperativaId.value)])
+  departamentos.value = deptos || []
+  cargos.value = cargosData || []
+  profilesCooperativa.value = perfiles || []
+}
+
+// Colaboradores cuyo usuario ya está vinculado a otro registro, para no
+// ofrecerlo dos veces en el desplegable de "Usuario del sistema".
+const profileIdsVinculados = computed(() => new Set(employees.value.map((e) => e.profileId).filter((id) => id && id !== empForm.profileId)))
+const profilesDisponibles = computed(() => profilesCooperativa.value.filter((p) => !profileIdsVinculados.value.has(p.id)))
+
+/* ── Invitar usuario desde el expediente ── */
+const mostrarInvitarUsuario = ref(false)
+const invitarEmail = ref('')
+const invitarEnviando = ref(false)
+const invitarError = ref(null)
+const invitarEnlace = ref('')
+
+async function enviarInvitacionDesdeExpediente() {
+  invitarError.value = null
+  if (!invitarEmail.value.trim()) { invitarError.value = 'Escribe un correo.'; return }
+  invitarEnviando.value = true
+  const { data, error } = await crearInvitacion(cooperativaId.value, currentUser.value?.id, {
+    email: invitarEmail.value, role: 'operador', empleadoId: modal.data?.id || null,
+  })
+  invitarEnviando.value = false
+  if (error) { invitarError.value = error.message; return }
+  invitarEnlace.value = `${window.location.origin}/invitacion/${data.codigo}`
+}
+
+async function copiarEnlaceInvitacion() {
+  try { await navigator.clipboard.writeText(invitarEnlace.value) } catch { /* portapapeles no disponible */ }
+}
+
+onMounted(async () => {
+  await Promise.all([loadEmpleados(), loadCatalogos(), cargarCatalogosExpediente()])
 })
 
 /* ── Pestañas ───────────────────────────── */
 const tabs = [
   { key: 'dashboard',    label: 'Inicio',        icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>` },
   { key: 'expedientes',  label: 'Expedientes',   icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` }, // eslint-disable-line
-  { key: 'documentos',   label: 'Documentos',    icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>` },
+  { key: 'documentos',   label: 'Documentación', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>` },
   { key: 'vacaciones',   label: 'Vacaciones',    icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
   { key: 'permisos',     label: 'Permisos',      icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` },
   { key: 'asistencia',   label: 'Asistencia',    icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>` },
@@ -1395,10 +3015,9 @@ const tabs = [
 /* ── Indicadores ────────────────────────── */
 const INDICATOR_META = [
   { key: 'total',       label: 'Total colaboradores',     bg: 'rgba(19,60,101,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#133C65" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
-  { key: 'activos',     label: 'Activos',                 bg: 'rgba(26,145,82,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A9152" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
-  { key: 'inactivos',   label: 'Inactivos',               bg: 'rgba(112,113,115,0.1)', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#707173" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>` },
   { key: 'vacpend',     label: 'Vac. pendientes',         bg: 'rgba(21,101,192,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1565C0" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
   { key: 'permpend',    label: 'Permisos pendientes',     bg: 'rgba(123,63,160,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B3FA0" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>` },
+  { key: 'incapact',    label: 'Incapacidades activas',   bg: 'rgba(192,57,43,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C0392B" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>` },
   { key: 'capac',       label: 'Capacitaciones progr.',   bg: 'rgba(0,128,140,0.1)',   icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00808C" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>` },
   { key: 'cumple',      label: 'Cumpleaños del mes',      bg: 'rgba(236,64,122,0.1)',  icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EC407A" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` },
 ]
@@ -1409,29 +3028,15 @@ const indicatorValues = computed(() => {
   const mesActual = new Date().getMonth() + 1
   return {
     total: employees.value.length,
-    activos: employees.value.filter(e => e.active).length,
-    inactivos: employees.value.filter(e => !e.active).length,
     vacpend: vacaciones.value.filter(v => v.status === 'Pendiente').length,
     permpend: permisos.value.filter(p => p.status === 'Pendiente').length,
+    incapact: incapacidades.value.filter(i => i.status === 'Activa').length,
     capac: capacitaciones.value.filter(c => c.status === 'Programada').length,
     cumple: employees.value.filter(e => e.fechaNacimiento && Number(e.fechaNacimiento.slice(5, 7)) === mesActual).length,
   }
 })
 
 const indicators = computed(() => INDICATOR_META.map(m => ({ ...m, value: indicatorValues.value[m.key] ?? 0 })))
-
-const visibleEmployees = computed(() =>
-  isOperador.value ? employees.value.filter(e => e.id === ANA_ID) : employees.value
-)
-
-const visibleTabs = computed(() => {
-  if (isOperador.value) {
-    return tabs
-      .filter(t => t.key !== 'dashboard' && t.key !== 'historial' && t.key !== 'reportes')
-      .map(t => t.key === 'expedientes' ? { ...t, label: 'Expediente' } : t)
-  }
-  return tabs
-})
 
 /* ── Empleados ──────────────────────────── */
 const DEMO_EMPLOYEES = [
@@ -1452,123 +3057,979 @@ const filteredEmployees = computed(() =>
   })
 )
 
-/* ── Vacaciones mock ────────────────────── */
-const DEMO_VACACIONES = [
-  { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', inicio: '23/06/2026', fin: '04/07/2026', dias: 10, status: 'Pendiente', statusClass: 'yellow' },
-  { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', inicio: '07/07/2026', fin: '11/07/2026', dias: 5,  status: 'Aprobada',  statusClass: 'green' },
-  { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', inicio: '14/07/2026', fin: '17/07/2026', dias: 4,  status: 'Pendiente', statusClass: 'yellow' },
-]
-const vacaciones = ref(isSupabaseConfigured() ? [] : DEMO_VACACIONES)
+/* ── Vacaciones (tabla dedicada, solicitud + aprobación) ── */
+const vacaciones = ref([])
+const permisos = ref([])
+const incapacidades = ref([])
 
-/* ── Permisos mock ──────────────────────── */
-const DEMO_PERMISOS = [
-  { id: 1, name: 'Patricia Mora', initials: 'PM', color: '#C0392B', tipo: 'Cita médica',        fecha: '16/06/2026', horas: 4, status: 'Pendiente', statusClass: 'yellow' },
-  { id: 2, name: 'Luis Jiménez',  initials: 'LJ', color: '#C47F0C', tipo: 'Con goce salarial',  fecha: '17/06/2026', horas: 8, status: 'Aprobado',  statusClass: 'green' },
-  { id: 3, name: 'Ana Vargas',    initials: 'AV', color: '#7B3FA0', tipo: 'Estudio',            fecha: '20/06/2026', horas: 3, status: 'Pendiente', statusClass: 'yellow' },
-]
-const permisos = ref(isSupabaseConfigured() ? [] : DEMO_PERMISOS)
-
-async function loadVacacionesYPermisos() {
+async function cargarVacaciones() {
+  const { data, error } = await listVacaciones()
+  if (error) { vacError.value = error.message; return }
+  vacaciones.value = data || []
+}
+async function cargarPermisos() {
   if (!isSupabaseConfigured()) return
-  const [{ data: vacs }, { data: perms }] = await Promise.all([
-    listPermisos({ vacaciones: true }),
-    listPermisos({ vacaciones: false }),
-  ])
-  vacaciones.value = (vacs || []).map(p => ({ id: p.id, name: p.name, initials: p.initials, color: p.color, inicio: p.fecha, fin: p.fecha, dias: p.horas, status: p.status, statusClass: p.statusClass }))
-  permisos.value = perms || []
+  const { data, error } = await listPermisosSolicitudes()
+  if (!error) permisos.value = data || []
 }
-onMounted(loadVacacionesYPermisos)
-
-/* ── Nueva solicitud de vacaciones/permiso ── */
-const vacacionForm = reactive({ empleadoId: '', inicio: '', fin: '', motivo: '' })
-const permisoForm = reactive({ empleadoId: '', tipo: '', fecha: '', horas: 8, motivo: '' })
-const solicitudError = ref(null)
-
-async function enviarVacacion() {
-  if (!isSupabaseConfigured()) { modal.open = false; return }
-  if (!vacacionForm.empleadoId || !vacacionForm.inicio || !vacacionForm.fin) return
-  solicitudError.value = null
-  const dias = Math.max(1, Math.round((new Date(vacacionForm.fin) - new Date(vacacionForm.inicio)) / 86400000) + 1)
-  const { error } = await crearPermiso(cooperativaId.value, {
-    empleadoId: vacacionForm.empleadoId, tipo: 'Vacaciones', fecha: vacacionForm.inicio, horas: dias * 8, motivo: vacacionForm.motivo,
-  })
-  if (error) { solicitudError.value = error.message; return }
-  Object.assign(vacacionForm, { empleadoId: '', inicio: '', fin: '', motivo: '' })
-  await loadVacacionesYPermisos()
-  modal.open = false
+async function cargarIncapacidades() {
+  if (!isSupabaseConfigured()) return
+  const { data, error } = await listIncapacidades()
+  if (!error) incapacidades.value = data || []
 }
+onMounted(() => { cargarVacaciones(); cargarPermisos(); cargarIncapacidades() })
 
-async function enviarPermiso() {
-  if (!isSupabaseConfigured()) { modal.open = false; return }
-  if (!permisoForm.empleadoId || !permisoForm.tipo || !permisoForm.fecha) return
-  solicitudError.value = null
-  const { error } = await crearPermiso(cooperativaId.value, permisoForm)
-  if (error) { solicitudError.value = error.message; return }
-  Object.assign(permisoForm, { empleadoId: '', tipo: '', fecha: '', horas: 8, motivo: '' })
-  await loadVacacionesYPermisos()
-  modal.open = false
-}
+const permisosStats = computed(() => ({
+  total: permisos.value.length,
+  horasAprobadas: permisos.value.filter(p => p.status === 'Aprobado').reduce((sum, p) => sum + (Number(p.horas) || 0), 0),
+  pendientes: permisos.value.filter(p => p.status === 'Pendiente').length,
+}))
 
-/* ── Documentos mock ────────────────────── */
-const docGrupos = [
-  {
-    cat: 'Documentos personales',
-    bg: 'rgba(19,60,101,0.08)',
-    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#133C65" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-    docs: [
-      { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', tipo: 'Cédula de identidad',   carga: '01/03/2018', vence: '15/09/2027', venceAlert: false, status: 'Vigente',  statusClass: 'green' },
-      { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', tipo: 'Licencia de conducir',  carga: '15/07/2019', vence: '30/06/2026', venceAlert: true,  status: 'Por vencer',statusClass: 'yellow' },
-      { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', tipo: 'Cédula de identidad',   carga: '20/01/2021', vence: '10/12/2028', venceAlert: false, status: 'Vigente',  statusClass: 'green' },
-    ]
-  },
-  {
-    cat: 'Documentos laborales',
-    bg: 'rgba(26,145,82,0.08)',
-    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A9152" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>`,
-    docs: [
-      { id: 4, name: 'María Rodríguez', initials: 'MR', color: '#133C65', tipo: 'Contrato laboral',    carga: '01/03/2018', vence: null,          venceAlert: false, status: 'Activo',  statusClass: 'green' },
-      { id: 5, name: 'Patricia Mora',   initials: 'PM', color: '#C0392B', tipo: 'Nombramiento',        carga: '03/09/2022', vence: '03/09/2024',  venceAlert: true,  status: 'Vencido', statusClass: 'gray' },
-      { id: 6, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', tipo: 'Adenda contractual',  carga: '10/01/2024', vence: null,           venceAlert: false, status: 'Activo',  statusClass: 'green' },
-    ]
-  },
-  {
-    cat: 'Documentos académicos',
-    bg: 'rgba(123,63,160,0.08)',
-    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B3FA0" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
-    docs: [
-      { id: 7, name: 'Carlos Solano', initials: 'CS', color: '#1A9152', tipo: 'Título universitario',     carga: '15/07/2019', vence: null,         venceAlert: false, status: 'Vigente', statusClass: 'green' },
-      { id: 8, name: 'Ana Vargas',    initials: 'AV', color: '#7B3FA0', tipo: 'Certificación técnica',    carga: '05/06/2023', vence: '05/06/2025', venceAlert: true,  status: 'Por vencer', statusClass: 'yellow' },
-    ]
+const vacacionesStats = computed(() => ({
+  total: vacaciones.value.length,
+  diasAprobados: vacaciones.value.filter(v => v.status === 'Aprobada').reduce((sum, v) => sum + (Number(v.dias) || 0), 0),
+  pendientes: vacaciones.value.filter(v => v.status === 'Pendiente').length,
+}))
+
+const incapacidadesStats = computed(() => ({
+  total: incapacidades.value.length,
+  diasAcumulados: incapacidades.value.reduce((sum, i) => sum + (Number(i.dias) || 0), 0),
+  activas: incapacidades.value.filter(i => i.status === 'Activa').length,
+}))
+
+/* ── Filtros de las tablas de vacaciones / permisos / incapacidades ── */
+const vacFiltroNumero = ref('')
+const vacFiltroNombre = ref('')
+const vacFiltroFecha = ref('')
+const vacFiltroEstado = ref('')
+const vacacionesFiltradas = computed(() => vacaciones.value.filter((v) => {
+  if (vacFiltroNumero.value && !(v.numeroSolicitud || '').toLowerCase().includes(vacFiltroNumero.value.trim().toLowerCase())) return false
+  if (vacFiltroNombre.value && !(v.name || '').toLowerCase().includes(vacFiltroNombre.value.trim().toLowerCase())) return false
+  if (vacFiltroFecha.value && !(v.fechaInicioISO <= vacFiltroFecha.value && vacFiltroFecha.value <= v.fechaFinISO)) return false
+  if (vacFiltroEstado.value && v.status !== vacFiltroEstado.value) return false
+  return true
+}))
+
+const permFiltroNumero = ref('')
+const permFiltroNombre = ref('')
+const permFiltroFecha = ref('')
+const permFiltroEstado = ref('')
+const permisosFiltrados = computed(() => permisos.value.filter((p) => {
+  if (permFiltroNumero.value && !(p.numeroSolicitud || '').toLowerCase().includes(permFiltroNumero.value.trim().toLowerCase())) return false
+  if (permFiltroNombre.value && !(p.name || '').toLowerCase().includes(permFiltroNombre.value.trim().toLowerCase())) return false
+  if (permFiltroFecha.value && !(p.fechaInicioISO <= permFiltroFecha.value && permFiltroFecha.value <= p.fechaFinISO)) return false
+  if (permFiltroEstado.value && p.status !== permFiltroEstado.value) return false
+  return true
+}))
+
+const incFiltroNumero = ref('')
+const incFiltroNombre = ref('')
+const incFiltroFecha = ref('')
+const incFiltroEstado = ref('')
+const incapacidadesFiltradas = computed(() => incapacidades.value.filter((i) => {
+  if (incFiltroNumero.value && !(i.numeroRegistro || '').toLowerCase().includes(incFiltroNumero.value.trim().toLowerCase())) return false
+  if (incFiltroNombre.value && !(i.name || '').toLowerCase().includes(incFiltroNombre.value.trim().toLowerCase())) return false
+  if (incFiltroFecha.value && !(i.fechaInicioISO <= incFiltroFecha.value && incFiltroFecha.value <= i.fechaFinISO)) return false
+  if (incFiltroEstado.value && i.status !== incFiltroEstado.value) return false
+  return true
+}))
+
+/* ── Solicitud + aprobación de vacaciones (modal en pestañas) ── */
+const vacTab = ref('solicitud')
+const EMPTY_VAC_FORM = { empleadoId: '', tipoVacacionId: '', aprobadorDesignadoId: '', fechaInicio: '', fechaFin: '', diasSolicitados: '', diasHabiles: '', observaciones: '' }
+const vacForm = reactive({ ...EMPTY_VAC_FORM })
+const vacError = ref(null)
+const vacSaving = ref(false)
+const vacResolviendo = ref(false)
+const vacAprobacionComentario = ref('')
+const vacAprobacionMotivo = ref('')
+const tiposVacacion = ref([])
+const tiposPermiso = ref([])
+const tiposIncapacidad = ref([])
+const institucionesEmisoras = ref([])
+const vacArchivoNuevo = ref(null)
+const vacDocumentoActual = ref(null)
+function onVacArchivoChange(e) { vacArchivoNuevo.value = e.target.files[0] || null }
+
+const vacEmpleadoInfo = computed(() => {
+  const emp = employees.value.find((e) => e.id === vacForm.empleadoId)
+  if (!emp) return null
+  return {
+    codigo: emp.codigoInterno || '—',
+    departamento: emp.dept || '—',
+    puesto: emp.role || '—',
+    jefatura: employees.value.find((j) => j.id === emp.jefeInmediatoId)?.name || '—',
+    fechaIngreso: emp.date || '—',
   }
-]
+})
 
-/* ── Asistencia mock ────────────────────── */
-const asistencias = [
-  { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', fecha: '15/06/2026', entrada: '07:58', salida: '17:05', horas: 9,   extra: 1,    status: 'Completo',  statusClass: 'green' },
-  { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', fecha: '15/06/2026', entrada: '08:22', salida: '17:01', horas: 8.6, extra: null, status: 'Tardía',    statusClass: 'yellow' },
-  { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', fecha: '15/06/2026', entrada: '08:00', salida: null,    horas: null,extra: null, status: 'En oficina',statusClass: 'blue' },
-  { id: 4, name: 'Patricia Mora',   initials: 'PM', color: '#C0392B', fecha: '15/06/2026', entrada: '07:55', salida: '16:58', horas: 9,   extra: 1,    status: 'Completo',  statusClass: 'green' },
-  { id: 5, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', fecha: '15/06/2026', entrada: null,   salida: null,    horas: null,extra: null, status: 'Ausente',   statusClass: 'gray' },
-  { id: 6, name: 'María Rodríguez', initials: 'MR', color: '#133C65', fecha: '13/06/2026', entrada: '08:01', salida: '17:00', horas: 9,   extra: 1,    status: 'Completo',  statusClass: 'green' },
-  { id: 7, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', fecha: '13/06/2026', entrada: '08:00', salida: '17:00', horas: 8,   extra: null, status: 'Completo',  statusClass: 'green' },
-]
+// Saldo simplificado: 1 día generado por cada mes completo desde el ingreso,
+// menos los días ya usados en solicitudes aprobadas. El sistema de saldos/
+// movimientos completo del documento (secciones 6, 16, 17) queda pendiente.
+function mesesAcumulados(fechaIngresoISO) {
+  if (!fechaIngresoISO) return 0
+  const ini = new Date(fechaIngresoISO)
+  const hoy = new Date()
+  let meses = (hoy.getFullYear() - ini.getFullYear()) * 12 + (hoy.getMonth() - ini.getMonth())
+  if (hoy.getDate() < ini.getDate()) meses--
+  return Math.max(0, meses)
+}
 
-/* ── Incapacidades mock ─────────────────── */
-const incapacidades = [
-  { id: 1, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', inicio: '02/06/2026', fin: '05/06/2026', dias: 3, institucion: 'CCSS',           diagnostico: 'Cuadro respiratorio', status: 'Aprobada',  statusClass: 'green' },
-  { id: 2, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', inicio: '10/06/2026', fin: '12/06/2026', dias: 2, institucion: 'Médico privado',  diagnostico: '',                    status: 'Aprobada',  statusClass: 'green' },
-  { id: 3, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', inicio: '15/06/2026', fin: '17/06/2026', dias: 3, institucion: 'CCSS',           diagnostico: '',                    status: 'Pendiente', statusClass: 'yellow' },
-]
+// Se puede editar una solicitud nueva, o una existente mientras siga
+// pendiente de revisión; una vez aprobada/rechazada/cancelada queda fija.
+const vacCamposEditables = computed(() => !modal.data || modal.data.estado === 'pendiente')
 
-/* ── Capacitaciones mock ────────────────── */
-const DEMO_CAPACITACIONES = [
-  { id: 1, nombre: 'Excel avanzado para finanzas', depto: 'Finanzas', categoria: 'Tecnología',  modalidad: 'Virtual',     modalidadClass: 'virtual',     fecha: '05/05/2026', horas: 16, instructor: 'TechPro CR',     asistentes: 8,  status: 'Finalizada',  statusClass: 'green' },
-  { id: 2, nombre: 'Atención al asociado',         depto: 'Operaciones', categoria: 'Servicio', modalidad: 'Presencial',   modalidadClass: 'presencial',  fecha: '12/05/2026', horas: 8,  instructor: 'Laura Soto',     asistentes: 14, status: 'Finalizada',  statusClass: 'green' },
-  { id: 3, nombre: 'Normativa SUGEF actualizada',  depto: 'Todos',       categoria: 'Normativa',modalidad: 'Virtual',     modalidadClass: 'virtual',     fecha: '20/06/2026', horas: 4,  instructor: 'SUGEF',          asistentes: 28, status: 'Programada',  statusClass: 'blue' },
-  { id: 4, nombre: 'Liderazgo y trabajo en equipo',depto: 'Admin.',      categoria: 'Liderazgo',modalidad: 'Mixta',       modalidadClass: 'mixta',       fecha: '10/07/2026', horas: 12, instructor: 'Consultores SA', asistentes: 6,  status: 'Programada',  statusClass: 'blue' },
-  { id: 5, nombre: 'Prevención de riesgos',        depto: 'Todos',       categoria: 'Normativa',modalidad: 'Presencial',  modalidadClass: 'presencial',  fecha: '15/03/2026', horas: 6,  instructor: 'INS',            asistentes: 32, status: 'Finalizada',  statusClass: 'green' },
-]
-const capacitaciones = ref(isSupabaseConfigured() ? [] : DEMO_CAPACITACIONES)
+const vacDiasDisponibles = computed(() => {
+  const emp = employees.value.find((e) => e.id === vacForm.empleadoId)
+  if (!emp) return null
+  const generados = mesesAcumulados(emp.fechaIngresoISO)
+  const usados = vacaciones.value
+    .filter((v) => v.empleadoId === emp.id && v.estado === 'aprobada')
+    .reduce((sum, v) => sum + (Number(v.dias) || 0), 0)
+  return generados - usados
+})
+
+function calcularDiasVacacion() {
+  if (!vacForm.fechaInicio || !vacForm.fechaFin) { vacForm.diasSolicitados = ''; vacForm.diasHabiles = ''; return }
+  const ini = new Date(vacForm.fechaInicio)
+  const fin = new Date(vacForm.fechaFin)
+  if (fin < ini) { vacForm.diasSolicitados = ''; vacForm.diasHabiles = ''; return }
+  let total = 0, habiles = 0
+  for (let d = new Date(ini); d <= fin; d.setDate(d.getDate() + 1)) {
+    total++
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) habiles++
+  }
+  vacForm.diasSolicitados = total
+  vacForm.diasHabiles = habiles
+}
+watch(() => [vacForm.fechaInicio, vacForm.fechaFin], calcularDiasVacacion)
+
+function abrirNuevaVacacion() {
+  modal.type = 'vacacion'
+  modal.data = null
+  vacTab.value = 'solicitud'
+  Object.assign(vacForm, EMPTY_VAC_FORM)
+  vacError.value = null
+  vacArchivoNuevo.value = null
+  vacDocumentoActual.value = null
+  modal.open = true
+}
+
+function abrirRevisarVacacion(v) {
+  modal.type = 'vacacion'
+  modal.data = v
+  vacTab.value = 'solicitud'
+  Object.assign(vacForm, {
+    empleadoId: v.empleadoId,
+    tipoVacacionId: v.tipoVacacionId || '',
+    aprobadorDesignadoId: v.aprobadorDesignadoId || '',
+    fechaInicio: v.fechaInicioISO,
+    fechaFin: v.fechaFinISO,
+    diasSolicitados: v.dias,
+    diasHabiles: v.diasHabiles ?? '',
+    observaciones: v.observaciones || '',
+  })
+  vacAprobacionComentario.value = ''
+  vacAprobacionMotivo.value = ''
+  vacError.value = null
+  vacArchivoNuevo.value = null
+  vacDocumentoActual.value = v.documentoPath ? { path: v.documentoPath, nombre: v.documentoNombre } : null
+  modal.open = true
+}
+
+async function verDocumentoVacacion() {
+  if (!vacDocumentoActual.value) return
+  const { url, error } = await getUrlDescarga(vacDocumentoActual.value.path)
+  if (error || !url) { vacError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+async function quitarDocumentoVacacion() {
+  if (!modal.data || !vacDocumentoActual.value) return
+  if (!confirm('¿Quitar el documento adjunto de esta solicitud?')) return
+  const { error } = await eliminarDocumentoVacacion(modal.data.id, vacDocumentoActual.value.path)
+  if (error) { vacError.value = error.message; return }
+  vacDocumentoActual.value = null
+  await cargarVacaciones()
+}
+
+async function enviarSolicitudVacacion() {
+  vacError.value = null
+  if (!vacForm.empleadoId || !vacForm.fechaInicio || !vacForm.fechaFin) { vacError.value = 'Completa colaborador y fechas.'; return }
+  if (new Date(vacForm.fechaFin) < new Date(vacForm.fechaInicio)) { vacError.value = 'La fecha de finalización no puede ser anterior a la fecha de inicio.'; return }
+
+  if (vacDiasDisponibles.value !== null && Number(vacForm.diasSolicitados) > vacDiasDisponibles.value) {
+    vacError.value = `No hay suficientes días disponibles (disponibles: ${vacDiasDisponibles.value}, solicitados: ${vacForm.diasSolicitados}).`
+    return
+  }
+
+  const traslape = vacaciones.value.some((v) =>
+    v.id !== modal.data?.id &&
+    v.empleadoId === vacForm.empleadoId &&
+    v.estado !== 'rechazada' && v.estado !== 'cancelada' &&
+    vacForm.fechaInicio <= v.fechaFinISO && vacForm.fechaFin >= v.fechaInicioISO
+  )
+  if (traslape) { vacError.value = 'Este colaborador ya tiene una solicitud de vacaciones registrada en ese período.'; return }
+
+  vacSaving.value = true
+  const { data, error } = modal.data
+    ? await actualizarSolicitudVacaciones(modal.data.id, vacForm)
+    : await crearSolicitudVacaciones(cooperativaId.value, vacForm.empleadoId, vacForm)
+  if (error) { vacSaving.value = false; vacError.value = error.message; return }
+
+  if (vacArchivoNuevo.value) {
+    const solicitudId = modal.data ? modal.data.id : data.id
+    if (vacDocumentoActual.value) await eliminarDocumentoVacacion(solicitudId, vacDocumentoActual.value.path)
+    const { error: upErr } = await subirDocumentoVacacion(cooperativaId.value, vacForm.empleadoId, solicitudId, vacArchivoNuevo.value)
+    if (upErr) {
+      vacSaving.value = false
+      vacError.value = 'La solicitud se guardó, pero el documento no se pudo subir: ' + upErr.message
+      await cargarVacaciones()
+      return
+    }
+  }
+
+  vacSaving.value = false
+  await cargarVacaciones()
+  modal.open = false
+}
+
+async function aprobarVacacion() {
+  vacResolviendo.value = true
+  vacError.value = null
+  const { error } = await resolverVacacionSolicitud(modal.data.id, { aprobado: true, aprobadoPor: currentUser.value?.id, comentario: vacAprobacionComentario.value })
+  vacResolviendo.value = false
+  if (error) { vacError.value = error.message; return }
+  await cargarVacaciones()
+  modal.open = false
+}
+
+async function rechazarVacacion() {
+  if (!vacAprobacionMotivo.value.trim()) { vacError.value = 'Debes indicar el motivo de rechazo.'; return }
+  vacResolviendo.value = true
+  vacError.value = null
+  const { error } = await resolverVacacionSolicitud(modal.data.id, { aprobado: false, aprobadoPor: currentUser.value?.id, motivoRechazo: vacAprobacionMotivo.value })
+  vacResolviendo.value = false
+  if (error) { vacError.value = error.message; return }
+  await cargarVacaciones()
+  modal.open = false
+}
+
+/* ── Eliminar solicitud de vacaciones ── */
+const eliminandoVacacion = ref(false)
+const eliminarVacacionError = ref(null)
+
+function confirmarEliminarVacacion(v) {
+  modal.type = 'eliminar-vacacion'
+  modal.data = v
+  eliminarVacacionError.value = null
+  modal.open = true
+}
+
+async function eliminarVacacionConfirmada() {
+  if (!modal.data) return
+  eliminandoVacacion.value = true
+  eliminarVacacionError.value = null
+  const { error } = await eliminarVacacionSolicitud(modal.data.id)
+  eliminandoVacacion.value = false
+  if (error) { eliminarVacacionError.value = error.message; return }
+  modal.open = false
+  await cargarVacaciones()
+}
+
+/* ── Solicitud + aprobación de permisos (modal en pestañas) ── */
+const permTab = ref('solicitud')
+const EMPTY_PERM_FORM = { empleadoId: '', tipoPermisoId: '', aprobadorDesignadoId: '', fechaInicio: '', fechaFin: '', horaInicio: '', horaFin: '', cantidadDias: '', cantidadHoras: '', motivo: '', observaciones: '' }
+const permForm = reactive({ ...EMPTY_PERM_FORM })
+const permError = ref(null)
+const permSaving = ref(false)
+const permResolviendo = ref(false)
+const permAprobacionComentario = ref('')
+const permAprobacionMotivo = ref('')
+const permArchivoNuevo = ref(null)
+const permDocumentoActual = ref(null)
+function onPermArchivoChange(e) { permArchivoNuevo.value = e.target.files[0] || null }
+
+const permEmpleadoInfo = computed(() => {
+  const emp = employees.value.find((e) => e.id === permForm.empleadoId)
+  if (!emp) return null
+  return {
+    codigo: emp.codigoInterno || '—',
+    departamento: emp.dept || '—',
+    puesto: emp.role || '—',
+    jefatura: employees.value.find((j) => j.id === emp.jefeInmediatoId)?.name || '—',
+    fechaIngreso: emp.date || '—',
+  }
+})
+
+// Se puede editar una solicitud nueva, o una existente mientras siga
+// pendiente de revisión; una vez aprobada/rechazada/cancelada queda fija.
+const permCamposEditables = computed(() => !modal.data || modal.data.estado === 'pendiente')
+
+// Duración automática: si inicio y fin son el mismo día y hay horas, calcula
+// horas; si abarca varios días, calcula días completos.
+function calcularDuracionPermiso() {
+  if (!permForm.fechaInicio || !permForm.fechaFin) { permForm.cantidadDias = ''; permForm.cantidadHoras = ''; return }
+  const ini = new Date(permForm.fechaInicio)
+  const fin = new Date(permForm.fechaFin)
+  if (fin < ini) { permForm.cantidadDias = ''; permForm.cantidadHoras = ''; return }
+  if (permForm.fechaInicio === permForm.fechaFin && permForm.horaInicio && permForm.horaFin) {
+    const [hi, mi] = permForm.horaInicio.split(':').map(Number)
+    const [hf, mf] = permForm.horaFin.split(':').map(Number)
+    const horas = (hf * 60 + mf - (hi * 60 + mi)) / 60
+    permForm.cantidadHoras = horas > 0 ? Number(horas.toFixed(2)) : ''
+    permForm.cantidadDias = ''
+  } else {
+    let dias = 0
+    for (let d = new Date(ini); d <= fin; d.setDate(d.getDate() + 1)) dias++
+    permForm.cantidadDias = dias
+    permForm.cantidadHoras = ''
+  }
+}
+watch(() => [permForm.fechaInicio, permForm.fechaFin, permForm.horaInicio, permForm.horaFin], calcularDuracionPermiso)
+
+function abrirNuevoPermiso() {
+  modal.type = 'permiso'
+  modal.data = null
+  permTab.value = 'solicitud'
+  Object.assign(permForm, EMPTY_PERM_FORM)
+  permError.value = null
+  permArchivoNuevo.value = null
+  permDocumentoActual.value = null
+  modal.open = true
+}
+
+function abrirRevisarPermiso(p) {
+  modal.type = 'permiso'
+  modal.data = p
+  permTab.value = 'solicitud'
+  Object.assign(permForm, {
+    empleadoId: p.empleadoId,
+    tipoPermisoId: p.tipoPermisoId || '',
+    aprobadorDesignadoId: p.aprobadorDesignadoId || '',
+    fechaInicio: p.fechaInicioISO,
+    fechaFin: p.fechaFinISO,
+    horaInicio: p.horaInicio || '',
+    horaFin: p.horaFin || '',
+    cantidadDias: p.dias ?? '',
+    cantidadHoras: p.horas ?? '',
+    motivo: p.motivo || '',
+    observaciones: p.observaciones || '',
+  })
+  permAprobacionComentario.value = ''
+  permAprobacionMotivo.value = ''
+  permError.value = null
+  permArchivoNuevo.value = null
+  permDocumentoActual.value = p.documentoPath ? { path: p.documentoPath, nombre: p.documentoNombre } : null
+  modal.open = true
+}
+
+async function verDocumentoPermiso() {
+  if (!permDocumentoActual.value) return
+  const { url, error } = await getUrlDescarga(permDocumentoActual.value.path)
+  if (error || !url) { permError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+async function quitarDocumentoPermiso() {
+  if (!modal.data || !permDocumentoActual.value) return
+  if (!confirm('¿Quitar el documento adjunto de esta solicitud?')) return
+  const { error } = await eliminarDocumentoPermiso(modal.data.id, permDocumentoActual.value.path)
+  if (error) { permError.value = error.message; return }
+  permDocumentoActual.value = null
+  await cargarPermisos()
+}
+
+async function enviarSolicitudPermiso() {
+  permError.value = null
+  if (!permForm.empleadoId || !permForm.fechaInicio || !permForm.fechaFin) { permError.value = 'Completa colaborador y fechas.'; return }
+  if (new Date(permForm.fechaFin) < new Date(permForm.fechaInicio)) { permError.value = 'La fecha de finalización no puede ser anterior a la fecha de inicio.'; return }
+
+  permSaving.value = true
+  const { data, error } = modal.data
+    ? await actualizarPermisoSolicitud(modal.data.id, permForm)
+    : await crearPermisoSolicitud(cooperativaId.value, permForm.empleadoId, permForm)
+  if (error) { permSaving.value = false; permError.value = error.message; return }
+
+  if (permArchivoNuevo.value) {
+    const solicitudId = modal.data ? modal.data.id : data.id
+    if (permDocumentoActual.value) await eliminarDocumentoPermiso(solicitudId, permDocumentoActual.value.path)
+    const { error: upErr } = await subirDocumentoPermiso(cooperativaId.value, permForm.empleadoId, solicitudId, permArchivoNuevo.value)
+    if (upErr) {
+      permSaving.value = false
+      permError.value = 'La solicitud se guardó, pero el documento no se pudo subir: ' + upErr.message
+      await cargarPermisos()
+      return
+    }
+  }
+
+  permSaving.value = false
+  await cargarPermisos()
+  modal.open = false
+}
+
+async function aprobarPermiso() {
+  permResolviendo.value = true
+  permError.value = null
+  const { error } = await resolverPermisoSolicitud(modal.data.id, { aprobado: true, aprobadoPor: currentUser.value?.id, comentario: permAprobacionComentario.value })
+  permResolviendo.value = false
+  if (error) { permError.value = error.message; return }
+  await cargarPermisos()
+  modal.open = false
+}
+
+async function rechazarPermiso() {
+  if (!permAprobacionMotivo.value.trim()) { permError.value = 'Debes indicar el motivo de rechazo.'; return }
+  permResolviendo.value = true
+  permError.value = null
+  const { error } = await resolverPermisoSolicitud(modal.data.id, { aprobado: false, aprobadoPor: currentUser.value?.id, motivoRechazo: permAprobacionMotivo.value })
+  permResolviendo.value = false
+  if (error) { permError.value = error.message; return }
+  await cargarPermisos()
+  modal.open = false
+}
+
+/* ── Eliminar solicitud de permiso ── */
+const eliminandoPermiso = ref(false)
+const eliminarPermisoError = ref(null)
+
+function confirmarEliminarPermiso(p) {
+  modal.type = 'eliminar-permiso'
+  modal.data = p
+  eliminarPermisoError.value = null
+  modal.open = true
+}
+
+async function eliminarPermisoConfirmada() {
+  if (!modal.data) return
+  eliminandoPermiso.value = true
+  eliminarPermisoError.value = null
+  const { error } = await eliminarPermisoSolicitud(modal.data.id)
+  eliminandoPermiso.value = false
+  if (error) { eliminarPermisoError.value = error.message; return }
+  modal.open = false
+  await cargarPermisos()
+}
+
+/* ── Registro + reincorporación de incapacidades (modal en pestañas) ── */
+const incTab = ref('registro')
+const EMPTY_INC_FORM = { empleadoId: '', tipoIncapacidadId: '', institucionEmisoraId: '', numeroReferencia: '', fechaEmision: '', fechaInicio: '', fechaFin: '', cantidadDias: '', fechaReincorporacionPrevista: '', observaciones: '' }
+const incForm = reactive({ ...EMPTY_INC_FORM })
+const incError = ref(null)
+const incSaving = ref(false)
+const incResolviendo = ref(false)
+const incReincorporacionFecha = ref('')
+const incMotivoAnulacion = ref('')
+const incArchivoNuevo = ref(null)
+const incDocumentoActual = ref(null)
+let incReincorporacionAuto = true
+let incAplicandoAuto = false
+function onIncArchivoChange(e) { incArchivoNuevo.value = e.target.files[0] || null }
+
+const incEmpleadoInfo = computed(() => {
+  const emp = employees.value.find((e) => e.id === incForm.empleadoId)
+  if (!emp) return null
+  return {
+    codigo: emp.codigoInterno || '—',
+    departamento: emp.dept || '—',
+    puesto: emp.role || '—',
+    jefatura: employees.value.find((j) => j.id === emp.jefeInmediatoId)?.name || '—',
+    fechaIngreso: emp.date || '—',
+  }
+})
+
+// Se puede editar un registro nuevo, o uno existente mientras no esté
+// finalizado (reincorporación registrada) ni anulado.
+const incCamposEditables = computed(() => !modal.data || (modal.data.estado !== 'finalizada' && modal.data.estado !== 'anulada'))
+
+function pad2(n) { return String(n).padStart(2, '0') }
+function isoFromDate(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+
+// Calcula los días de incapacidad y sugiere la fecha de reincorporación
+// prevista (día siguiente al fin) mientras el usuario no la haya editado
+// manualmente.
+function calcularDiasIncapacidad() {
+  if (!incForm.fechaInicio || !incForm.fechaFin) { incForm.cantidadDias = ''; return }
+  const ini = new Date(incForm.fechaInicio)
+  const fin = new Date(incForm.fechaFin)
+  if (fin < ini) { incForm.cantidadDias = ''; return }
+  let dias = 0
+  for (let d = new Date(ini); d <= fin; d.setDate(d.getDate() + 1)) dias++
+  incForm.cantidadDias = dias
+  if (incReincorporacionAuto) {
+    incAplicandoAuto = true
+    const rein = new Date(fin)
+    rein.setDate(rein.getDate() + 1)
+    incForm.fechaReincorporacionPrevista = isoFromDate(rein)
+  }
+}
+watch(() => [incForm.fechaInicio, incForm.fechaFin], calcularDiasIncapacidad)
+watch(() => incForm.fechaReincorporacionPrevista, () => {
+  if (incAplicandoAuto) { incAplicandoAuto = false; return }
+  incReincorporacionAuto = false
+})
+
+function abrirNuevaIncapacidad() {
+  modal.type = 'incapacidad'
+  modal.data = null
+  incTab.value = 'registro'
+  Object.assign(incForm, EMPTY_INC_FORM)
+  incReincorporacionAuto = true
+  incError.value = null
+  incArchivoNuevo.value = null
+  incDocumentoActual.value = null
+  modal.open = true
+}
+
+function abrirRevisarIncapacidad(inc) {
+  modal.type = 'incapacidad'
+  modal.data = inc
+  incTab.value = 'registro'
+  Object.assign(incForm, {
+    empleadoId: inc.empleadoId,
+    tipoIncapacidadId: inc.tipoIncapacidadId || '',
+    institucionEmisoraId: inc.institucionEmisoraId || '',
+    numeroReferencia: inc.numeroReferencia || '',
+    fechaEmision: inc.fechaEmisionISO || '',
+    fechaInicio: inc.fechaInicioISO,
+    fechaFin: inc.fechaFinISO,
+    cantidadDias: inc.dias ?? '',
+    fechaReincorporacionPrevista: inc.reincorporacionPrevistaISO || '',
+    observaciones: inc.observaciones || '',
+  })
+  incReincorporacionAuto = false
+  incReincorporacionFecha.value = inc.reincorporacionPrevistaISO || ''
+  incMotivoAnulacion.value = ''
+  incError.value = null
+  incArchivoNuevo.value = null
+  incDocumentoActual.value = inc.documentoPath ? { path: inc.documentoPath, nombre: inc.documentoNombre } : null
+  modal.open = true
+}
+
+async function verDocumentoIncapacidad() {
+  if (!incDocumentoActual.value) return
+  const { url, error } = await getUrlDescarga(incDocumentoActual.value.path)
+  if (error || !url) { incError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+async function quitarDocumentoIncapacidad() {
+  if (!modal.data || !incDocumentoActual.value) return
+  if (!confirm('¿Quitar el documento adjunto de este registro?')) return
+  const { error } = await eliminarDocumentoIncapacidad(modal.data.id, incDocumentoActual.value.path)
+  if (error) { incError.value = error.message; return }
+  incDocumentoActual.value = null
+  await cargarIncapacidades()
+}
+
+async function enviarRegistroIncapacidad() {
+  incError.value = null
+  if (!incForm.empleadoId || !incForm.fechaInicio || !incForm.fechaFin) { incError.value = 'Completa colaborador y fechas.'; return }
+  if (new Date(incForm.fechaFin) < new Date(incForm.fechaInicio)) { incError.value = 'La fecha de finalización no puede ser anterior a la fecha de inicio.'; return }
+
+  incSaving.value = true
+  const { data, error } = modal.data
+    ? await actualizarIncapacidad(modal.data.id, incForm)
+    : await crearIncapacidad(cooperativaId.value, incForm.empleadoId, incForm)
+  if (error) { incSaving.value = false; incError.value = error.message; return }
+
+  if (incArchivoNuevo.value) {
+    const incapacidadId = modal.data ? modal.data.id : data.id
+    if (incDocumentoActual.value) await eliminarDocumentoIncapacidad(incapacidadId, incDocumentoActual.value.path)
+    const { error: upErr } = await subirDocumentoIncapacidad(cooperativaId.value, incForm.empleadoId, incapacidadId, incArchivoNuevo.value)
+    if (upErr) {
+      incSaving.value = false
+      incError.value = 'El registro se guardó, pero el documento no se pudo subir: ' + upErr.message
+      await cargarIncapacidades()
+      return
+    }
+  }
+
+  incSaving.value = false
+  await cargarIncapacidades()
+  modal.open = false
+}
+
+async function confirmarReincorporacionIncapacidad() {
+  if (!incReincorporacionFecha.value) { incError.value = 'Indica la fecha real de reincorporación.'; return }
+  incResolviendo.value = true
+  incError.value = null
+  const { error } = await registrarReincorporacion(modal.data.id, { fechaReal: incReincorporacionFecha.value })
+  incResolviendo.value = false
+  if (error) { incError.value = error.message; return }
+  await cargarIncapacidades()
+  modal.open = false
+}
+
+async function anularIncapacidadForm() {
+  if (!incMotivoAnulacion.value.trim()) { incError.value = 'Indica el motivo de anulación.'; return }
+  incResolviendo.value = true
+  incError.value = null
+  const { error } = await anularIncapacidad(modal.data.id, incMotivoAnulacion.value)
+  incResolviendo.value = false
+  if (error) { incError.value = error.message; return }
+  await cargarIncapacidades()
+  modal.open = false
+}
+
+/* ── Eliminar registro de incapacidad ── */
+const eliminandoIncapacidad = ref(false)
+const eliminarIncapacidadError = ref(null)
+
+function confirmarEliminarIncapacidad(inc) {
+  modal.type = 'eliminar-incapacidad'
+  modal.data = inc
+  eliminarIncapacidadError.value = null
+  modal.open = true
+}
+
+async function eliminarIncapacidadConfirmada() {
+  if (!modal.data) return
+  eliminandoIncapacidad.value = true
+  eliminarIncapacidadError.value = null
+  const { error } = await eliminarIncapacidad(modal.data.id)
+  eliminandoIncapacidad.value = false
+  if (error) { eliminarIncapacidadError.value = error.message; return }
+  modal.open = false
+  await cargarIncapacidades()
+}
+
+// Documentos y evaluaciones de desempeño no tienen tabla propia todavia en
+// el esquema (no hay `documentos` ni `evaluaciones_desempeno`). En vez de
+// simular datos, esas pestañas muestran un estado vacio honesto hasta que
+// se coordine el modelo de datos correspondiente.
+
+/* ══════════════════════════════════════════
+   Asistencia (carga masiva + marcación propia)
+   ══════════════════════════════════════════ */
+const ESTADOS_ASISTENCIA = ['Presente', 'Tardanza', 'Ausente', 'Vacaciones', 'Permiso', 'Incapacidad', 'Feriado', 'Día libre', 'Pendiente']
+
+const feriados = ref([])
+async function cargarFeriados() {
+  const { data, error } = await listFeriados()
+  if (!error) feriados.value = data || []
+}
+
+const marcaciones = ref([])
+async function cargarAsistencia() {
+  if (!isSupabaseConfigured()) return
+  const { data, error } = await listMarcaciones({})
+  if (!error) marcaciones.value = data || []
+}
+
+function normalizarConfigAsistencia(c) {
+  return {
+    ...c,
+    hora_entrada_estandar: (c.hora_entrada_estandar || '08:00').slice(0, 5),
+    hora_salida_estandar: (c.hora_salida_estandar || '17:00').slice(0, 5),
+  }
+}
+const asistConfig = ref({ modalidad: 'ambas', hora_entrada_estandar: '08:00', hora_salida_estandar: '17:00', tolerancia_minutos: 15 })
+async function cargarConfigAsistencia() {
+  const { data } = await getConfiguracionAsistencia(cooperativaId.value)
+  if (data) asistConfig.value = normalizarConfigAsistencia(data)
+}
+
+onMounted(() => { cargarAsistencia(); cargarFeriados(); cargarConfigAsistencia() })
+
+function hhmm(t) { return t ? t.slice(0, 5) : '' }
+
+function horasEntre(hhmm1, hhmm2) {
+  const [h1, m1] = hhmm1.split(':').map(Number)
+  const [h2, m2] = hhmm2.split(':').map(Number)
+  const diff = (h2 * 60 + m2) - (h1 * 60 + m1)
+  return diff > 0 ? Math.round((diff / 60) * 10) / 10 : 0
+}
+
+function sumarMinutos(base, minutos) {
+  const [h, m] = base.split(':').map(Number)
+  const total = h * 60 + m + minutos
+  const hh = Math.floor(total / 60) % 24
+  const mm = total % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+const marcacionesPorClave = computed(() => {
+  const map = new Map()
+  marcaciones.value.forEach((m) => map.set(`${m.empleadoId}|${m.fecha}`, m))
+  return map
+})
+
+// Combina la marcación (si existe) con vacaciones/permisos/incapacidades
+// aprobados y feriados para determinar el estado del día de un colaborador,
+// siguiendo la integración descrita en el md (sección 14).
+function estadoDelDia(emp, fechaISO) {
+  const marc = marcacionesPorClave.value.get(`${emp.id}|${fechaISO}`)
+  if (marc && marc.horaEntrada) {
+    const horas = marc.horaSalida ? horasEntre(marc.horaEntrada, marc.horaSalida) : null
+    const tardanza = (marc.minutosTardanza || 0) > 0
+    return {
+      entrada: marc.horaEntrada, salida: marc.horaSalida, horas,
+      estado: tardanza ? 'Tardanza' : 'Presente', estadoClass: tardanza ? 'yellow' : 'green',
+      sinJustificar: tardanza && !marc.observacion,
+    }
+  }
+  const vac = vacaciones.value.find((v) => v.empleadoId === emp.id && v.estado === 'aprobada' && fechaISO >= v.fechaInicioISO && fechaISO <= v.fechaFinISO)
+  if (vac) return { entrada: null, salida: null, horas: null, estado: 'Vacaciones', estadoClass: 'blue-light', sinJustificar: false }
+  const perm = permisos.value.find((p) => p.empleadoId === emp.id && p.estado === 'aprobado' && fechaISO >= p.fechaInicioISO && fechaISO <= p.fechaFinISO)
+  if (perm) return { entrada: null, salida: null, horas: null, estado: 'Permiso', estadoClass: 'blue', sinJustificar: false }
+  const inc = incapacidades.value.find((i) => i.empleadoId === emp.id && (i.estado === 'activa' || i.estado === 'finalizada') && fechaISO >= i.fechaInicioISO && fechaISO <= i.fechaFinISO)
+  if (inc) return { entrada: null, salida: null, horas: null, estado: 'Incapacidad', estadoClass: 'gray', sinJustificar: false }
+  const fer = feriados.value.find((f) => f.fecha === fechaISO && f.activo)
+  if (fer) return { entrada: null, salida: null, horas: null, estado: 'Feriado', estadoClass: 'gray', sinJustificar: false }
+  const dow = new Date(fechaISO + 'T00:00:00').getDay()
+  if (dow === 0 || dow === 6) return { entrada: null, salida: null, horas: null, estado: 'Día libre', estadoClass: 'gray', sinJustificar: false }
+  const hoyISO = new Date().toISOString().slice(0, 10)
+  if (fechaISO === hoyISO) {
+    const limite = sumarMinutos(asistConfig.value.hora_entrada_estandar, asistConfig.value.tolerancia_minutos ?? 15)
+    const ahora = new Date().toTimeString().slice(0, 5)
+    if (ahora < limite) return { entrada: null, salida: null, horas: null, estado: 'Pendiente', estadoClass: 'gray', sinJustificar: false }
+  }
+  return { entrada: null, salida: null, horas: null, estado: 'Ausente', estadoClass: 'red', sinJustificar: false }
+}
+
+const asistFiltroFecha = ref(new Date().toISOString().slice(0, 10))
+const asistFiltroDepto = ref('')
+const asistFiltroNombre = ref('')
+const asistFiltroEstado = ref('')
+
+const asistenciaFilas = computed(() => {
+  const fechaISO = asistFiltroFecha.value || new Date().toISOString().slice(0, 10)
+  return employees.value
+    .filter((e) => e.active)
+    .map((e) => ({
+      empleadoId: e.id,
+      name: nombreCompleto(e),
+      initials: e.initials,
+      color: e.color,
+      dept: e.dept,
+      ...estadoDelDia(e, fechaISO),
+    }))
+})
+
+const asistenciaFilasFiltradas = computed(() => asistenciaFilas.value.filter((a) => {
+  if (asistFiltroDepto.value && a.dept !== asistFiltroDepto.value) return false
+  if (asistFiltroNombre.value && !a.name.toLowerCase().includes(asistFiltroNombre.value.trim().toLowerCase())) return false
+  if (asistFiltroEstado.value && a.estado !== asistFiltroEstado.value) return false
+  return true
+}))
+
+const asistenciaStats = computed(() => {
+  const hoyISO = new Date().toISOString().slice(0, 10)
+  const filasHoy = employees.value.filter((e) => e.active).map((e) => estadoDelDia(e, hoyISO))
+  return {
+    presentes: filasHoy.filter((f) => f.estado === 'Presente' || f.estado === 'Tardanza').length,
+    tardanzas: filasHoy.filter((f) => f.estado === 'Tardanza').length,
+    ausentes: filasHoy.filter((f) => f.estado === 'Ausente').length,
+    porJustificar: filasHoy.filter((f) => f.sinJustificar).length,
+  }
+})
+
+/* ── Configuración de asistencia ── */
+const asistConfigForm = reactive({ modalidad: 'ambas', horaEntradaEstandar: '08:00', horaSalidaEstandar: '17:00', toleranciaMinutos: 15 })
+const asistConfigError = ref(null)
+const asistConfigSaving = ref(false)
+
+function abrirConfiguracionAsistencia() {
+  modal.type = 'asistencia-config'
+  modal.data = null
+  Object.assign(asistConfigForm, {
+    modalidad: asistConfig.value.modalidad || 'ambas',
+    horaEntradaEstandar: asistConfig.value.hora_entrada_estandar,
+    horaSalidaEstandar: asistConfig.value.hora_salida_estandar,
+    toleranciaMinutos: asistConfig.value.tolerancia_minutos ?? 15,
+  })
+  asistConfigError.value = null
+  modal.open = true
+}
+
+async function guardarConfigAsistenciaForm() {
+  asistConfigSaving.value = true
+  asistConfigError.value = null
+  const { data, error } = await guardarConfiguracionAsistencia(cooperativaId.value, asistConfigForm)
+  asistConfigSaving.value = false
+  if (error) { asistConfigError.value = error.message; return }
+  asistConfig.value = normalizarConfigAsistencia(data)
+  modal.open = false
+}
+
+/* ── Carga masiva de asistencia ── */
+const asistCargaPaso = ref(1)
+const asistArchivoSeleccionado = ref(null)
+const asistCargaValidando = ref(false)
+const asistCargaImportando = ref(false)
+const asistCargaError = ref(null)
+const asistCargaResultado = ref({ total: 0, validos: [], advertencias: [], errores: [] })
+
+function abrirCargaAsistencia() {
+  modal.type = 'asistencia-cargar'
+  modal.data = null
+  asistCargaPaso.value = 1
+  asistArchivoSeleccionado.value = null
+  asistCargaError.value = null
+  asistCargaResultado.value = { total: 0, validos: [], advertencias: [], errores: [] }
+  modal.open = true
+}
+
+function onArchivoAsistenciaChange(e) {
+  asistArchivoSeleccionado.value = e.target.files?.[0] || null
+}
+
+// Separador de líneas CSV simple con soporte de campos entre comillas, para
+// no depender de una libreria externa de lectura de Excel/CSV.
+function splitCsvLine(line, delim) {
+  const out = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++ } else { inQuotes = false } }
+      else cur += ch
+    } else if (ch === '"') inQuotes = true
+    else if (ch === delim) { out.push(cur); cur = '' }
+    else cur += ch
+  }
+  out.push(cur)
+  return out.map((s) => s.trim())
+}
+
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '')
+  if (!lines.length) return []
+  const delim = lines[0].includes(';') ? ';' : ','
+  return lines.slice(1).map((line) => splitCsvLine(line, delim))
+}
+
+async function descargarPlantillaAsistencia() {
+  const ejemplo = [{
+    identificacion: '1-1111-1111',
+    fecha: new Date().toISOString().slice(0, 10),
+    horaEntrada: '08:00',
+    horaSalida: '17:00',
+    observacion: '',
+  }]
+  await exportExcel(ejemplo, [
+    { key: 'identificacion', label: 'Identificación' },
+    { key: 'fecha', label: 'Fecha' },
+    { key: 'horaEntrada', label: 'Hora entrada' },
+    { key: 'horaSalida', label: 'Hora salida' },
+    { key: 'observacion', label: 'Observación' },
+  ], 'plantilla_asistencia')
+}
+
+async function validarArchivoAsistencia() {
+  if (!asistArchivoSeleccionado.value) return
+  asistCargaValidando.value = true
+  asistCargaError.value = null
+  try {
+    const nombre = asistArchivoSeleccionado.value.name.toLowerCase()
+    const rows = nombre.endsWith('.xlsx')
+      ? (await readXlsxRows(asistArchivoSeleccionado.value)).slice(1)
+      : parseCSV(await asistArchivoSeleccionado.value.text())
+    const filas = rows.filter((r) => r.some((c) => (c ?? '').toString().trim() !== '')).map((r) => ({
+      identificacion: r[0] || '',
+      fecha: r[1] || '',
+      horaEntrada: r[2] || '',
+      horaSalida: r[3] || '',
+      observacion: r[4] || '',
+    }))
+    const resultado = await importarMarcacionesMasivo(cooperativaId.value, filas)
+    asistCargaResultado.value = { ...resultado, total: filas.length }
+    asistCargaPaso.value = 2
+  } catch (e) {
+    asistCargaError.value = 'No se pudo leer el archivo: ' + e.message
+  }
+  asistCargaValidando.value = false
+}
+
+async function confirmarCargaAsistencia() {
+  asistCargaImportando.value = true
+  asistCargaError.value = null
+  const { error } = await confirmarImportacionMasiva(cooperativaId.value, asistCargaResultado.value.validos, asistConfig.value)
+  asistCargaImportando.value = false
+  if (error) { asistCargaError.value = error.message; return }
+  modal.open = false
+  await cargarAsistencia()
+}
+
+/* ── Marcar asistencia (colaborador sin sistema propio) ── */
+const miEmpleadoAsistencia = ref(null)
+const marcacionHoyAsistencia = ref(null)
+const asistMarcarCargando = ref(false)
+const asistMarcarError = ref(null)
+const asistReloj = ref('')
+let asistRelojTimer = null
+
+function iniciarReloj() {
+  const tick = () => { asistReloj.value = new Date().toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
+  tick()
+  asistRelojTimer = setInterval(tick, 1000)
+}
+function detenerReloj() {
+  if (asistRelojTimer) { clearInterval(asistRelojTimer); asistRelojTimer = null }
+}
+watch(() => modal.open, (open) => { if (!open) detenerReloj() })
+
+const saludoAsistencia = computed(() => {
+  const h = new Date().getHours()
+  if (h < 12) return 'Buenos días'
+  if (h < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+})
+const fechaLargaHoy = computed(() => {
+  const f = new Date().toLocaleDateString('es-CR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return f.charAt(0).toUpperCase() + f.slice(1)
+})
+const horasTrabajadasHoy = computed(() => {
+  if (!marcacionHoyAsistencia.value?.hora_entrada || !marcacionHoyAsistencia.value?.hora_salida) return null
+  return horasEntre(hhmm(marcacionHoyAsistencia.value.hora_entrada), hhmm(marcacionHoyAsistencia.value.hora_salida))
+})
+
+async function abrirMarcarAsistencia() {
+  modal.type = 'asistencia-marcar'
+  modal.data = null
+  asistMarcarError.value = null
+  miEmpleadoAsistencia.value = null
+  marcacionHoyAsistencia.value = null
+  modal.open = true
+  iniciarReloj()
+  const { data: emp } = await getMiEmpleado(currentUser.value?.id)
+  miEmpleadoAsistencia.value = emp
+  if (emp) {
+    const { data: marc } = await getMarcacionDeHoy(emp.id)
+    marcacionHoyAsistencia.value = marc
+  }
+}
+
+async function confirmarMarcarEntrada() {
+  if (!miEmpleadoAsistencia.value) return
+  asistMarcarCargando.value = true
+  asistMarcarError.value = null
+  const horaActual = new Date().toTimeString().slice(0, 5)
+  const minutosTardanza = calcularTardanza(horaActual, asistConfig.value)
+  const { data, error } = await marcarEntrada(cooperativaId.value, miEmpleadoAsistencia.value.id, { horaEntrada: horaActual, minutosTardanza })
+  asistMarcarCargando.value = false
+  if (error) { asistMarcarError.value = error.message; return }
+  marcacionHoyAsistencia.value = data
+  await cargarAsistencia()
+}
+
+async function confirmarMarcarSalida() {
+  if (!marcacionHoyAsistencia.value) return
+  asistMarcarCargando.value = true
+  asistMarcarError.value = null
+  const horaActual = new Date().toTimeString().slice(0, 5)
+  const { data, error } = await marcarSalida(marcacionHoyAsistencia.value.id, horaActual)
+  asistMarcarCargando.value = false
+  if (error) { asistMarcarError.value = error.message; return }
+  marcacionHoyAsistencia.value = data
+  await cargarAsistencia()
+}
+
+/* ── Capacitaciones ────────────────── */
+const capacitaciones = ref([])
 
 async function loadCapacitaciones() {
   if (!isSupabaseConfigured()) return
@@ -1577,43 +4038,408 @@ async function loadCapacitaciones() {
 }
 onMounted(loadCapacitaciones)
 
-const capacitacionForm = reactive({ nombre: '', categoria: '', modalidad: '', fecha: '', horas: '', instructor: '', estado: 'Programada' })
+const capacitacionesStats = computed(() => {
+  const list = capacitaciones.value
+  return {
+    finalizadas: list.filter(c => c.estado === 'finalizada').length,
+    programadas: list.filter(c => c.estado === 'programada').length,
+    horas: list.reduce((sum, c) => sum + (Number(c.horas) || 0), 0),
+    asistentes: list.reduce((sum, c) => sum + (Number(c.asistentes) || 0), 0),
+  }
+})
+
+const capFiltroTexto = ref('')
+const capFiltroCategoriaId = ref('')
+const capFiltroModalidadId = ref('')
+const capFiltroEstado = ref('')
+const capacitacionesFiltradas = computed(() => capacitaciones.value
+  .filter((c) => {
+    if (capFiltroTexto.value) {
+      const q = capFiltroTexto.value.trim().toLowerCase()
+      if (!(c.nombre || '').toLowerCase().includes(q) && !(c.instructor || '').toLowerCase().includes(q)) return false
+    }
+    if (capFiltroCategoriaId.value && c.categoriaId !== capFiltroCategoriaId.value) return false
+    if (capFiltroModalidadId.value && c.modalidadId !== capFiltroModalidadId.value) return false
+    if (capFiltroEstado.value && c.status !== capFiltroEstado.value) return false
+    return true
+  })
+  .map((c) => ({
+    ...c,
+    deptoLabel: (c.departamentosIds || []).length
+      ? c.departamentosIds.map((id) => departamentos.value.find((d) => d.id === id)?.nombre).filter(Boolean).join(', ')
+      : 'Todos',
+  }))
+)
+
+const ESTADO_CAP_DB_TO_FORM = { programada: 'Programada', en_curso: 'En curso', finalizada: 'Finalizada' }
+const EMPTY_CAP_FORM = {
+  nombre: '', categoriaId: '', modalidadId: '', fecha: '', horas: '',
+  instructorExterno: false, instructorNombre: '', instructorInstitucion: '', instructorCorreo: '', instructorTelefono: '',
+  estado: 'Programada', obligatoria: false, departamentosIds: [], descripcion: '',
+}
+const capacitacionForm = reactive({ ...EMPTY_CAP_FORM })
 const capacitacionError = ref(null)
+const capacitacionGuardando = ref(false)
+
+function abrirNuevaCapacitacion() {
+  modal.type = 'capacitacion'
+  modal.data = null
+  Object.assign(capacitacionForm, EMPTY_CAP_FORM, { departamentosIds: [] })
+  capacitacionError.value = null
+  documentosCapacitacion.value = []
+  modal.open = true
+}
+
+async function abrirEditarCapacitacion(cap) {
+  modal.type = 'capacitacion'
+  modal.data = cap
+  Object.assign(capacitacionForm, {
+    nombre: cap.nombre,
+    categoriaId: cap.categoriaId || '',
+    modalidadId: cap.modalidadId || '',
+    fecha: cap.fechaInicioISO,
+    horas: cap.horas || '',
+    instructorExterno: cap.instructorExterno,
+    instructorNombre: cap.instructorNombre || '',
+    instructorInstitucion: cap.instructorInstitucion || '',
+    instructorCorreo: cap.instructorCorreo || '',
+    instructorTelefono: cap.instructorTelefono || '',
+    estado: ESTADO_CAP_DB_TO_FORM[cap.estado] || 'Programada',
+    obligatoria: cap.obligatoria,
+    departamentosIds: [...(cap.departamentosIds || [])],
+    descripcion: cap.descripcion || '',
+  })
+  capacitacionError.value = null
+  modal.open = true
+  await cargarDocumentosCapacitacion(cap.id)
+}
 
 async function guardarCapacitacion() {
-  if (!isSupabaseConfigured()) { modal.open = false; return }
-  if (!capacitacionForm.nombre || !capacitacionForm.categoria || !capacitacionForm.modalidad || !capacitacionForm.fecha || !capacitacionForm.horas) return
+  if (!capacitacionForm.nombre || !capacitacionForm.categoriaId || !capacitacionForm.modalidadId || !capacitacionForm.fecha || !capacitacionForm.horas) return
   capacitacionError.value = null
-  const { error } = await crearCapacitacion(cooperativaId.value, capacitacionForm)
+  capacitacionGuardando.value = true
+  const { error } = modal.data
+    ? await actualizarCapacitacion(modal.data.id, capacitacionForm)
+    : await crearCapacitacion(cooperativaId.value, capacitacionForm)
+  capacitacionGuardando.value = false
   if (error) { capacitacionError.value = error.message; return }
-  Object.assign(capacitacionForm, { nombre: '', categoria: '', modalidad: '', fecha: '', horas: '', instructor: '', estado: 'Programada' })
   await loadCapacitaciones()
   modal.open = false
 }
 
-/* ── Evaluaciones mock ──────────────────── */
-const evaluaciones = [
-  { id: 1, name: 'María Rodríguez', initials: 'MR', color: '#133C65', periodo: 'Semestral', tipo: 'Jefatura',      evaluador: 'Gerencia',        fecha: '30/06/2026', calificacion: null, calClass: '',      status: 'Pendiente',   statusClass: 'yellow' },
-  { id: 2, name: 'Carlos Solano',   initials: 'CS', color: '#1A9152', periodo: 'Anual',     tipo: '360°',          evaluador: 'Comité RRHH',     fecha: '15/12/2025', calificacion: 87,   calClass: 'good',  status: 'Completada',  statusClass: 'green' },
-  { id: 3, name: 'Ana Vargas',      initials: 'AV', color: '#7B3FA0', periodo: 'Semestral', tipo: 'Autoevaluación', evaluador: 'Ana Vargas',     fecha: '30/06/2026', calificacion: null, calClass: '',      status: 'En proceso',  statusClass: 'blue' },
-  { id: 4, name: 'Patricia Mora',   initials: 'PM', color: '#C0392B', periodo: 'Anual',     tipo: 'Jefatura',      evaluador: 'Gerencia',        fecha: '15/12/2025', calificacion: 74,   calClass: 'mid',   status: 'Completada',  statusClass: 'green' },
-  { id: 5, name: 'Luis Jiménez',    initials: 'LJ', color: '#C47F0C', periodo: 'Semestral', tipo: '180°',          evaluador: 'Comité RRHH',     fecha: '30/06/2026', calificacion: null, calClass: '',      status: 'Pendiente',   statusClass: 'yellow' },
-]
+/* ── Documentos generales de una capacitación (plan, material, etc.) ── */
+const documentosCapacitacion = ref([])
+const capDocArchivoNuevo = ref(null)
+const subiendoCapDoc = ref(false)
 
-/* ── Filtros por rol ─────────────────────── */
-const visibleVacaciones      = computed(() => isOperador.value ? vacaciones.value.filter(v => v.name === 'Ana Vargas') : vacaciones.value)
-const visiblePermisos        = computed(() => isOperador.value ? permisos.value.filter(p => p.name === 'Ana Vargas') : permisos.value)
-const visibleAsistencias     = computed(() => isOperador.value ? asistencias.filter(a => a.name === 'Ana Vargas') : asistencias)
-const visibleIncapacidades   = computed(() => isOperador.value ? incapacidades.filter(i => i.name === 'Ana Vargas') : incapacidades)
-const visibleEvaluaciones    = computed(() => isOperador.value ? evaluaciones.filter(e => e.name === 'Ana Vargas') : evaluaciones)
-const visibleDocGrupos       = computed(() => {
-  if (!isOperador.value) return docGrupos
-  return docGrupos
-    .map(g => ({ ...g, docs: g.docs.filter(d => d.name === 'Ana Vargas') }))
-    .filter(g => g.docs.length > 0)
+async function cargarDocumentosCapacitacion(capacitacionId) {
+  const { data } = await listDocumentosCapacitacion(capacitacionId)
+  documentosCapacitacion.value = data || []
+}
+
+function onCapDocArchivoChange(e) { capDocArchivoNuevo.value = e.target.files[0] || null }
+
+async function subirCapDoc() {
+  if (!capDocArchivoNuevo.value || !modal.data) return
+  subiendoCapDoc.value = true
+  const { error } = await subirDocumentoCapacitacion(cooperativaId.value, modal.data.id, capDocArchivoNuevo.value)
+  subiendoCapDoc.value = false
+  if (error) { capacitacionError.value = error.message; return }
+  capDocArchivoNuevo.value = null
+  await cargarDocumentosCapacitacion(modal.data.id)
+}
+
+async function descargarCapDoc(doc) {
+  const { url, error } = await getUrlDescarga(doc.storage_path)
+  if (error || !url) { capacitacionError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+async function quitarCapDoc(doc) {
+  const { error } = await eliminarDocumentoCapacitacion(doc)
+  if (error) { capacitacionError.value = error.message; return }
+  documentosCapacitacion.value = documentosCapacitacion.value.filter((d) => d.id !== doc.id)
+}
+
+/* ── Eliminar capacitación ── */
+const eliminandoCapacitacion = ref(false)
+const eliminarCapacitacionError = ref(null)
+
+function confirmarEliminarCapacitacion(cap) {
+  modal.type = 'eliminar-capacitacion'
+  modal.data = cap
+  eliminarCapacitacionError.value = null
+  modal.open = true
+}
+
+async function eliminarCapacitacionConfirmada() {
+  if (!modal.data) return
+  eliminandoCapacitacion.value = true
+  eliminarCapacitacionError.value = null
+  const { error } = await eliminarCapacitacion(modal.data.id)
+  eliminandoCapacitacion.value = false
+  if (error) { eliminarCapacitacionError.value = error.message; return }
+  modal.open = false
+  await loadCapacitaciones()
+}
+
+/* ── Gestionar asistentes de una capacitación ── */
+const asistentesCapacitacion = ref([])
+const asistenteNuevoId = ref('')
+const asistentesError = ref(null)
+const agregandoAsistente = ref(false)
+const empleadosSinAsistencia = computed(() => employees.value.filter((e) => !asistentesCapacitacion.value.some((a) => a.empleadoId === e.id)))
+const asistentesConCertificado = computed(() => asistentesCapacitacion.value.filter((a) => a.numeroCertificado || a.documentoCertificadoPath))
+const exportandoCertificados = ref(false)
+
+async function abrirAsistentesCapacitacion(cap) {
+  modal.type = 'asistentes-capacitacion'
+  modal.data = cap
+  asistenteNuevoId.value = ''
+  asistentesError.value = null
+  const { data } = await listAsistentesCapacitacion(cap.id)
+  asistentesCapacitacion.value = data || []
+  modal.open = true
+}
+
+async function agregarAsistente() {
+  if (!asistenteNuevoId.value) return
+  agregandoAsistente.value = true
+  asistentesError.value = null
+  const { error } = await agregarAsistenteCapacitacion(modal.data.id, asistenteNuevoId.value)
+  agregandoAsistente.value = false
+  if (error) { asistentesError.value = error.message; return }
+  asistenteNuevoId.value = ''
+  const { data } = await listAsistentesCapacitacion(modal.data.id)
+  asistentesCapacitacion.value = data || []
+  await loadCapacitaciones()
+}
+
+// Si la asistencia queda en "asistio", refleja la capacitación como
+// certificación en el expediente del colaborador (pestaña Certificaciones);
+// si no, retira ese registro (por si se había marcado por error).
+async function sincronizarCertificacionSiCorresponde(cap, a) {
+  if (a.estadoAsistencia === 'asistio') {
+    const vencida = a.fechaVencimientoCertificado && new Date(a.fechaVencimientoCertificado) < new Date()
+    await sincronizarCertificacionCapacitacion(
+      cooperativaId.value, a.empleadoId, a.id,
+      {
+        nombre: cap.nombre,
+        institucion_certificadora: a.certificadoInstitucion || cap.instructorInstitucion || null,
+        fecha_emision: a.fechaEmisionCertificado || cap.fechaInicioISO,
+        fecha_vencimiento: a.fechaVencimientoCertificado || null,
+        estado: vencida ? 'vencido' : 'vigente',
+      },
+      a.documentoCertificadoPath ? { path: a.documentoCertificadoPath, nombre: a.documentoCertificadoNombre } : null,
+    )
+  } else {
+    await quitarCertificacionCapacitacion(a.id)
+  }
+}
+
+async function actualizarAsistente(a) {
+  const { error } = await actualizarAsistenteCapacitacion(a.id, { estadoAsistencia: a.estadoAsistencia, calificacion: a.calificacion })
+  if (error) { asistentesError.value = error.message; return }
+  asistentesError.value = null
+  await sincronizarCertificacionSiCorresponde(modal.data, a)
+  await loadCapacitaciones()
+}
+
+async function quitarAsistente(a) {
+  const { error } = await quitarAsistenteCapacitacion(a.id)
+  if (error) { asistentesError.value = error.message; return }
+  asistentesCapacitacion.value = asistentesCapacitacion.value.filter((x) => x.id !== a.id)
+  await loadCapacitaciones()
+}
+
+async function exportarCertificados() {
+  if (!asistentesConCertificado.value.length) return
+  exportandoCertificados.value = true
+  await exportCertificadosCapacitacionZip(modal.data, asistentesConCertificado.value, async (path) => {
+    const { blob } = await descargarArchivo(path)
+    return blob
+  })
+  exportandoCertificados.value = false
+}
+
+/* ── Certificado de un asistente ── */
+const asignacionCapacitacionActual = ref(null)
+const asistenteParaCertificado = ref(null)
+const certificadoForm = reactive({ numeroCertificado: '', certificadoInstitucion: '', fechaEmisionCertificado: '', fechaVencimientoCertificado: '' })
+const certificadoArchivoNuevo = ref(null)
+const certificadoError = ref(null)
+const guardandoCertificado = ref(false)
+
+function abrirCertificadoAsistente(a) {
+  asignacionCapacitacionActual.value = modal.data
+  asistenteParaCertificado.value = a
+  Object.assign(certificadoForm, {
+    numeroCertificado: a.numeroCertificado || '',
+    certificadoInstitucion: a.certificadoInstitucion || modal.data?.instructorInstitucion || '',
+    fechaEmisionCertificado: a.fechaEmisionCertificado || '',
+    fechaVencimientoCertificado: a.fechaVencimientoCertificado || '',
+  })
+  certificadoArchivoNuevo.value = null
+  certificadoError.value = null
+  modal.type = 'certificado-asistente'
+}
+
+function onCertificadoArchivoChange(e) { certificadoArchivoNuevo.value = e.target.files[0] || null }
+
+async function recargarAsistentesTrasCertificado() {
+  const { data } = await listAsistentesCapacitacion(asignacionCapacitacionActual.value.id)
+  asistentesCapacitacion.value = data || []
+  asistenteParaCertificado.value = asistentesCapacitacion.value.find((x) => x.id === asistenteParaCertificado.value.id) || null
+}
+
+async function guardarCertificado() {
+  guardandoCertificado.value = true
+  certificadoError.value = null
+  const { error } = await guardarCertificadoAsistente(
+    cooperativaId.value, asistenteParaCertificado.value.empleadoId, asistenteParaCertificado.value.id,
+    { ...certificadoForm, documentoCertificadoPath: asistenteParaCertificado.value.documentoCertificadoPath, documentoCertificadoNombre: asistenteParaCertificado.value.documentoCertificadoNombre },
+    certificadoArchivoNuevo.value,
+  )
+  guardandoCertificado.value = false
+  if (error) { certificadoError.value = error.message; return }
+  await recargarAsistentesTrasCertificado()
+  if (asistenteParaCertificado.value) await sincronizarCertificacionSiCorresponde(asignacionCapacitacionActual.value, asistenteParaCertificado.value)
+  modal.type = 'asistentes-capacitacion'
+}
+
+async function quitarCertificadoAsistente() {
+  guardandoCertificado.value = true
+  certificadoError.value = null
+  const { error } = await eliminarCertificadoAsistente(asistenteParaCertificado.value.id, asistenteParaCertificado.value.documentoCertificadoPath)
+  guardandoCertificado.value = false
+  if (error) { certificadoError.value = error.message; return }
+  await recargarAsistentesTrasCertificado()
+  if (asistenteParaCertificado.value) await sincronizarCertificacionSiCorresponde(asignacionCapacitacionActual.value, asistenteParaCertificado.value)
+  modal.type = 'asistentes-capacitacion'
+}
+
+async function descargarCertificadoDoc(a) {
+  const { url, error } = await getUrlDescarga(a.documentoCertificadoPath)
+  if (error || !url) { certificadoError.value = error?.message || 'No se pudo generar el enlace de descarga.'; return }
+  window.open(url, '_blank')
+}
+
+/* ── Documentación institucional (repositorio compartido) ── */
+const puedeGestionarDocInstitucional = computed(() => ['admin', 'consejo'].includes(currentUser.value?.profile?.role))
+
+const documentosInstitucionales = ref([])
+const docCategoriaActiva = ref(Object.keys(ESTRUCTURA_DOCUMENTAL)[0])
+const docSubcategoriaActiva = ref(ESTRUCTURA_DOCUMENTAL[docCategoriaActiva.value][0])
+const docInstFiltroTexto = ref('')
+
+async function cargarDocumentosInstitucionales() {
+  const { data } = await listDocumentosInstitucionales()
+  documentosInstitucionales.value = data || []
+}
+
+// Además del árbol fijo, incluye las categorías/subcategorías "Otro" que se
+// hayan escrito libremente al subir un documento, para que sigan siendo
+// navegables (si no, quedarían huérfanas y nadie podría volver a verlas).
+const categoriasDocDisponibles = computed(() => {
+  const fijas = Object.keys(ESTRUCTURA_DOCUMENTAL)
+  const libres = [...new Set(documentosInstitucionales.value.map((d) => d.categoria))].filter((c) => !fijas.includes(c))
+  return [...fijas, ...libres]
 })
-const ANA_CAPS = [2, 3, 5]
-const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.value.filter(c => ANA_CAPS.includes(c.id)) : capacitaciones.value)
+const subcategoriasDocDisponibles = computed(() => {
+  const fijas = ESTRUCTURA_DOCUMENTAL[docCategoriaActiva.value] || []
+  const libres = [...new Set(documentosInstitucionales.value.filter((d) => d.categoria === docCategoriaActiva.value).map((d) => d.subcategoria))].filter((s) => !fijas.includes(s))
+  return [...fijas, ...libres]
+})
+
+function seleccionarCategoriaDoc(cat) {
+  docCategoriaActiva.value = cat
+  docSubcategoriaActiva.value = (ESTRUCTURA_DOCUMENTAL[cat] || subcategoriasDocDisponibles.value)[0]
+}
+
+const documentosInstFiltrados = computed(() => documentosInstitucionales.value.filter((d) => {
+  if (d.categoria !== docCategoriaActiva.value || d.subcategoria !== docSubcategoriaActiva.value) return false
+  if (docInstFiltroTexto.value) {
+    const q = docInstFiltroTexto.value.trim().toLowerCase()
+    if (!d.nombre.toLowerCase().includes(q) && !(d.descripcion || '').toLowerCase().includes(q)) return false
+  }
+  return true
+}))
+
+async function abrirDocumentoInstitucional(d) {
+  const { url, error } = await getUrlDescargaInstitucional(d.storagePath)
+  if (error || !url) return
+  window.open(url, '_blank')
+}
+
+const EMPTY_DOC_INST_FORM = { categoria: Object.keys(ESTRUCTURA_DOCUMENTAL)[0], subcategoria: ESTRUCTURA_DOCUMENTAL[Object.keys(ESTRUCTURA_DOCUMENTAL)[0]][0], categoriaOtro: '', subcategoriaOtro: '', nombre: '', descripcion: '' }
+const docInstForm = reactive({ ...EMPTY_DOC_INST_FORM })
+const docInstArchivo = ref(null)
+const docInstError = ref(null)
+const subiendoDocInst = ref(false)
+
+function abrirNuevoDocInstitucional() {
+  modal.type = 'doc-institucional'
+  modal.data = null
+  Object.assign(docInstForm, EMPTY_DOC_INST_FORM, { categoria: docCategoriaActiva.value, subcategoria: docSubcategoriaActiva.value })
+  docInstArchivo.value = null
+  docInstError.value = null
+  modal.open = true
+}
+
+function onCategoriaDocInstChange() {
+  docInstForm.subcategoria = docInstForm.categoria === '__otro__' ? '' : ESTRUCTURA_DOCUMENTAL[docInstForm.categoria][0]
+  docInstForm.categoriaOtro = ''
+  docInstForm.subcategoriaOtro = ''
+}
+
+function onDocInstArchivoChange(e) { docInstArchivo.value = e.target.files[0] || null }
+
+async function subirDocInstitucional() {
+  const categoriaFinal = docInstForm.categoria === '__otro__' ? docInstForm.categoriaOtro.trim() : docInstForm.categoria
+  const subcategoriaFinal = (docInstForm.categoria === '__otro__' || docInstForm.subcategoria === '__otro__')
+    ? docInstForm.subcategoriaOtro.trim()
+    : docInstForm.subcategoria
+  if (!docInstForm.nombre.trim() || !docInstArchivo.value || !categoriaFinal || !subcategoriaFinal) return
+  docInstError.value = null
+  subiendoDocInst.value = true
+  const { error } = await subirDocumentoInstitucional(
+    cooperativaId.value, currentUser.value?.profile?.id,
+    { ...docInstForm, categoria: categoriaFinal, subcategoria: subcategoriaFinal },
+    docInstArchivo.value,
+  )
+  subiendoDocInst.value = false
+  if (error) { docInstError.value = error.message; return }
+  modal.open = false
+  if (ESTRUCTURA_DOCUMENTAL[categoriaFinal]) {
+    docCategoriaActiva.value = categoriaFinal
+    docSubcategoriaActiva.value = subcategoriaFinal
+  }
+  await cargarDocumentosInstitucionales()
+}
+
+const eliminandoDocInst = ref(false)
+const eliminarDocInstError = ref(null)
+
+function confirmarEliminarDocInstitucional(d) {
+  modal.type = 'eliminar-doc-institucional'
+  modal.data = d
+  eliminarDocInstError.value = null
+  modal.open = true
+}
+
+async function eliminarDocInstitucionalConfirmado() {
+  if (!modal.data) return
+  eliminandoDocInst.value = true
+  eliminarDocInstError.value = null
+  const { error } = await eliminarDocumentoInstitucional(modal.data)
+  eliminandoDocInst.value = false
+  if (error) { eliminarDocInstError.value = error.message; return }
+  modal.open = false
+  await cargarDocumentosInstitucionales()
+}
+
+onMounted(cargarDocumentosInstitucionales)
+
 </script>
 
 <style scoped>
@@ -1670,33 +4496,38 @@ const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.
 /* ── Indicators ─────────────────────────── */
 .indicators-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
 }
 
 .indicator-card {
   background: white;
   border: 1px solid #E8EEF4;
   border-radius: 10px;
-  padding: 14px 16px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 9px;
+  min-width: 0;
   box-shadow: 0 1px 3px rgba(19,60,101,0.06);
 }
 .dark .indicator-card { background: #1D293D; border-color: #3D5069; }
 
 .ind-icon {
-  width: 36px; height: 36px; border-radius: 9px;
+  width: 30px; height: 30px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
+.ind-icon svg { width: 15px; height: 15px; }
 .ind-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ind-value {
-  font-size: 22px; font-weight: 800; color: #133C65; line-height: 1;
+  font-size: 18px; font-weight: 800; color: #133C65; line-height: 1;
   font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
 }
 .dark .ind-value { color: #E2E8F0; }
-.ind-label { font-size: 11px; color: #7A90A0; font-weight: 500; line-height: 1.3; }
+.ind-label {
+  font-size: 10.5px; color: #7A90A0; font-weight: 500; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .dark .ind-label { color: #64748B; }
 
 /* ── Filters ────────────────────────────── */
@@ -1718,6 +4549,8 @@ const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.
   font-size: 13.5px; font-family: inherit; background: white; color: #1A2B3C; cursor: pointer; outline: none;
 }
 .dark .filter-select { background: #1D293D; border-color: #3D5069; color: #E2E8F0; }
+
+.filter-date { width: 150px; flex-shrink: 0; }
 
 /* ── Table ──────────────────────────────── */
 .data-card {
@@ -1770,6 +4603,8 @@ const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.
 .action-btn:hover { color: #133C65; background: #EBF3FF; }
 .dark .action-btn { color: #64748B; }
 .dark .action-btn:hover { color: #93B8D8; background: rgba(147,184,216,0.12); }
+.action-btn--green { color: #1A9152; }
+.dark .action-btn--green { color: #34D399; }
 .action-btn--green:hover { color: #1A9152; background: rgba(26,145,82,0.1); }
 .action-btn--red:hover { color: #C0392B; background: rgba(192,57,43,0.1); }
 
@@ -1916,6 +4751,8 @@ const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.
   transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
 }
 .btn-primary:hover { background: #0D2A47; }
+.btn-primary--danger { background: #C0392B; }
+.btn-primary--danger:hover:not(:disabled) { background: #9E2E22; }
 
 .btn-outline {
   display: inline-flex; align-items: center; gap: 7px;
@@ -1976,6 +4813,132 @@ const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.
 }
 .req { color: #C0392B; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+.checkbox-inline { flex-direction: row !important; align-items: center; gap: 6px; justify-content: flex-start; }
+.checkbox-inline label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4A6070; }
+.dark .checkbox-inline label { color: #94A3B8; }
+
+/* ── Expediente en pestañas (modal) ───────── */
+.modal-box--expediente { max-width: 880px; }
+.vac-modal-tabs { display: flex; gap: 4px; margin: 8px 0 16px; }
+
+.adjunto-actual {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 10px; border: 1px solid #E8EEF4; border-radius: 7px; background: #F8FAFC; margin-bottom: 6px;
+}
+.dark .adjunto-actual { background: #162033; border-color: #3D5069; }
+.adjunto-nombre { font-size: 12.5px; color: #133C65; cursor: pointer; text-decoration: underline; word-break: break-all; }
+.dark .adjunto-nombre { color: #93B8D8; }
+.adjunto-quitar {
+  width: 20px; height: 20px; border-radius: 5px; border: none; background: none;
+  color: #B8C4CE; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.adjunto-quitar:hover { color: #C0392B; background: rgba(192,57,43,0.1); }
+
+.exp-link-btn {
+  background: none; border: none; font-size: 12px; font-weight: 600; color: #133C65;
+  cursor: pointer; padding: 4px 0; text-align: left; margin-top: 6px;
+}
+.exp-link-btn:hover { text-decoration: underline; }
+.dark .exp-link-btn { color: #93B8D8; }
+
+.exp-invitar-box { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.usr-link-row { display: flex; gap: 6px; }
+.usr-link-row input {
+  flex: 1; height: 34px; padding: 0 8px; border: 1px solid #D4E4F4; border-radius: 6px;
+  font-size: 12px; background: #F8FAFC; color: #1A2B3C;
+}
+.dark .usr-link-row input { background: #162033; border-color: #3D5069; color: #E2E8F0; }
+
+/* ── Asistencia ─────────────────────────── */
+.asist-dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  border: 1.5px dashed #D4E4F4; border-radius: 12px; padding: 26px 16px; text-align: center;
+}
+.dark .asist-dropzone { border-color: #3D5069; }
+.asist-dropzone p { font-size: 13px; color: #4A6070; margin: 0; }
+.dark .asist-dropzone p { color: #94A3B8; }
+
+.asist-issues { display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; margin-bottom: 10px; }
+.asist-issue { font-size: 12px; padding: 6px 10px; border-radius: 6px; }
+.asist-issue--error { background: rgba(192,57,43,0.08); color: #C0392B; }
+.asist-issue--warn { background: rgba(196,127,12,0.08); color: #8A5800; }
+.dark .asist-issue--error { background: rgba(248,113,113,0.12); color: #F87171; }
+.dark .asist-issue--warn { background: rgba(251,191,36,0.12); color: #FBBF24; }
+
+.asist-marcar { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0 4px; text-align: center; }
+.asist-marcar-saludo { font-size: 15px; font-weight: 700; color: #133C65; margin: 0; }
+.dark .asist-marcar-saludo { color: #E2E8F0; }
+.asist-marcar-fecha { font-size: 12.5px; color: #7A90A0; margin: 0; text-transform: capitalize; }
+.asist-marcar-reloj { font-size: 28px; font-weight: 800; color: #133C65; font-variant-numeric: tabular-nums; margin: 4px 0; }
+.dark .asist-marcar-reloj { color: #E2E8F0; }
+
+.asist-circulo {
+  width: 150px; height: 150px; border-radius: 50%; border: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  color: white; font-size: 13px; font-weight: 700; margin: 10px 0;
+  transition: transform 0.15s;
+}
+.asist-circulo:hover:not(:disabled) { transform: scale(1.03); }
+.asist-circulo:disabled { opacity: 0.6; cursor: not-allowed; }
+.asist-circulo--verde { background: #1A9152; box-shadow: 0 0 0 8px rgba(26,145,82,0.12); }
+.asist-circulo--rojo { background: #C0392B; box-shadow: 0 0 0 8px rgba(192,57,43,0.12); }
+
+.asist-marcar-resultado { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; color: #4A6070; margin: 4px 0; }
+.dark .asist-marcar-resultado { color: #94A3B8; }
+.asist-marcar-resultado p { margin: 0; }
+
+.exp-modal-layout { display: grid; grid-template-columns: 190px 1fr; gap: 20px; margin-top: 8px; }
+.exp-modal-layout { display: grid; grid-template-columns: 190px 1fr; gap: 20px; margin-top: 8px; }
+.exp-tab-list { display: flex; flex-direction: column; gap: 2px; }
+.exp-tab-item {
+  text-align: left; padding: 9px 12px; border-radius: 8px; border: none; background: none;
+  font-size: 12.5px; font-weight: 600; color: #4A6070; cursor: pointer; transition: all 0.15s;
+}
+.exp-tab-item:hover { background: #F0F4F8; }
+.dark .exp-tab-item { color: #94A3B8; }
+.dark .exp-tab-item:hover { background: #243553; }
+.exp-tab-item--active { background: #133C65; color: white; }
+.dark .exp-tab-item--active { background: #2D5A8A; color: white; }
+.exp-tab-item--disabled { opacity: 0.45; }
+
+.doc-inst-layout { display: grid; grid-template-columns: 210px 1fr; gap: 20px; margin-top: 4px; }
+@media (max-width: 720px) { .doc-inst-layout { grid-template-columns: 1fr; } }
+.doc-inst-categorias { display: flex; flex-direction: column; gap: 4px; }
+.doc-inst-cat-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  text-align: left; padding: 11px 14px; border-radius: 10px; border: 1.5px solid #E7EFF7; background: white;
+  font-size: 13px; font-weight: 600; color: #1A2B3C; cursor: pointer; transition: all 0.15s;
+}
+.dark .doc-inst-cat-btn { background: #1D293D; border-color: #2A3B57; color: #E2E8F0; }
+.doc-inst-cat-btn:hover { border-color: #93B8D8; }
+.doc-inst-cat-btn--active { background: #133C65; border-color: #133C65; color: white; }
+.dark .doc-inst-cat-btn--active { background: #2D5A8A; border-color: #2D5A8A; }
+.doc-inst-cat-count { font-size: 11px; font-weight: 700; opacity: 0.7; }
+.doc-inst-subtabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.exp-tab-content { min-width: 0; max-height: 60vh; overflow-y: auto; padding-right: 4px; }
+
+.exp-subsection { display: flex; flex-direction: column; gap: 12px; }
+.exp-subtitle { font-size: 12.5px; font-weight: 700; color: #133C65; margin: 0; }
+.dark .exp-subtitle { color: #E2E8F0; }
+.exp-hint { font-size: 12px; color: #7A90A0; margin: 0; }
+
+.exp-mini-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.exp-mini-empty { font-size: 12.5px; color: #7A90A0; padding: 6px 0; }
+.exp-doc-link { color: #133C65; text-decoration: underline; }
+.dark .exp-doc-link { color: #93B8D8; }
+.exp-mini-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 4px; border-bottom: 1px solid #F0F4F8; font-size: 13px; color: #1A2B3C;
+}
+.dark .exp-mini-item { border-color: #2A3B57; color: #E2E8F0; }
+.exp-mini-item:last-child { border-bottom: none; }
+.exp-mini-sub { font-size: 11.5px; color: #7A90A0; margin-top: 2px; }
+
+@media (max-width: 700px) {
+  .exp-modal-layout { grid-template-columns: 1fr; }
+  .exp-tab-list { flex-direction: row; overflow-x: auto; }
+}
 
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.2s ease; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
@@ -2146,7 +5109,7 @@ const visibleCapacitaciones  = computed(() => isOperador.value ? capacitaciones.
 
 /* ── Responsive ─────────────────────────── */
 @media (max-width: 1200px) {
-  .indicators-grid { grid-template-columns: repeat(5, 1fr); }
+  .indicators-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 1000px) {
   .indicators-grid { grid-template-columns: repeat(3, 1fr); }

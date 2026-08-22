@@ -18,11 +18,16 @@ dist-ssr
 AGENTS.md
 run-schema.mjs
 
+# Config local de npm (certificado corporativo para redes con inspección TLS)
+.npmrc
+.certs-combined-ca.pem
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
+*.code-workspace
 *.suo
 *.ntvs*
 *.njsproj

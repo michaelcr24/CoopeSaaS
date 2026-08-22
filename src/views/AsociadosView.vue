@@ -4,7 +4,7 @@
     <!-- ═══════════════════════════════════════
          VISTA PRINCIPAL (lista)
     ═══════════════════════════════════════ -->
-    <template v-if="!selectedAsociado && !isAsociado && !isConsejo">
+    <template v-if="!selectedAsociado">
 
       <div class="page-header">
         <div>
@@ -67,10 +67,11 @@
         </select>
         <div class="export-group">
           <button class="export-btn export-btn--excel" title="Exportar a Excel"
-            @click="exportCSV(filteredAsociados,[{key:'name',label:'Nombre'},{key:'cedula',label:'Cédula'},{key:'numAsociado',label:'N° Asociado'},{key:'categoria',label:'Categoría'},{key:'capitalSocial',label:'Capital social'},{key:'aporteMensual',label:'Aporte mensual'},{key:'fechaIngreso',label:'Fecha ingreso'},{key:'statusLabel',label:'Estado'}],'asociados')">
+            @click="exportExcel(filteredAsociados,[{key:'name',label:'Nombre'},{key:'cedula',label:'Cédula'},{key:'numAsociado',label:'N° Asociado'},{key:'categoria',label:'Categoría'},{key:'capitalSocial',label:'Capital social'},{key:'aporteMensual',label:'Aporte mensual'},{key:'fechaIngreso',label:'Fecha ingreso'},{key:'statusLabel',label:'Estado'}],'asociados')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="8" y1="9" x2="8" y2="21"/><line x1="14" y1="9" x2="14" y2="21"/><line x1="2" y1="15" x2="22" y2="15"/></svg>
           </button>
-          <button class="export-btn export-btn--pdf" title="Exportar a PDF" @click="exportPDF('Listado de Asociados')">
+          <button class="export-btn export-btn--pdf" title="Exportar a PDF"
+            @click="exportPDF(filteredAsociados,[{key:'name',label:'Nombre'},{key:'cedula',label:'Cédula'},{key:'numAsociado',label:'N° Asociado'},{key:'categoria',label:'Categoría'},{key:'capitalSocial',label:'Capital social'},{key:'aporteMensual',label:'Aporte mensual'},{key:'fechaIngreso',label:'Fecha ingreso'},{key:'statusLabel',label:'Estado'}],'Listado de Asociados')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </button>
         </div>
@@ -139,7 +140,7 @@
 
       <!-- Encabezado de detalle -->
       <div class="detail-header">
-        <button v-if="!isAsociado && !isConsejo" class="back-btn" @click="selectedAsociado = null; activeTab = 'expediente'">
+        <button class="back-btn" @click="selectedAsociado = null; activeTab = 'expediente'">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
           Volver a la lista
         </button>
@@ -252,7 +253,7 @@
             <div class="exp-section">
               <div class="exp-section-head">
                 <div class="exp-section-title" style="margin-bottom:0">Beneficiarios</div>
-                <button class="btn-add-slim">
+                <button class="btn-add-slim" @click="openForm('editar')">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Agregar
                 </button>
@@ -286,10 +287,6 @@
         <div class="tab-card">
           <div class="tab-card-head">
             <h3 class="tab-card-title">Solicitudes</h3>
-            <button class="btn-primary btn-sm">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Nueva solicitud
-            </button>
           </div>
           <table class="data-table">
             <thead><tr><th>Tipo</th><th>Descripción</th><th>Fecha</th><th>Responsable</th><th>Estado</th><th></th></tr></thead>
@@ -327,7 +324,7 @@
             <div class="kpi-icon kpi-icon--purple">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
             </div>
-            <div><div class="kpi-val">₡ 85.000</div><div class="kpi-lbl">Aportes extraordinarios</div></div>
+            <div><div class="kpi-val">{{ selectedAsociado.aportes.length }}</div><div class="kpi-lbl">Aportes registrados</div></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-icon" :class="selectedAsociado.aporteBadge === 'green' ? 'kpi-icon--green' : 'kpi-icon--red'">
@@ -366,10 +363,6 @@
         <div v-for="grupo in beneficiosGrupos" :key="grupo.key" class="tab-card">
           <div class="tab-card-head">
             <h3 class="tab-card-title">{{ grupo.label }}</h3>
-            <button class="btn-primary btn-sm">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Solicitar {{ grupo.label }}
-            </button>
           </div>
           <table class="data-table">
             <thead><tr><th>Tipo</th><th>Beneficiario</th><th>Monto</th><th>Período</th><th>Estado</th><th></th></tr></thead>
@@ -395,10 +388,6 @@
         <div v-for="cat in docCategorias" :key="cat.key" class="tab-card">
           <div class="tab-card-head">
             <h3 class="tab-card-title">{{ cat.label }}</h3>
-            <button class="btn-outline btn-sm">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Subir
-            </button>
           </div>
           <table class="data-table">
             <thead><tr><th>Nombre</th><th>Fecha</th><th>Vencimiento</th><th>Estado</th><th></th></tr></thead>
@@ -721,8 +710,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { exportCSV, exportPDF } from '../composables/useExport.js'
-import { useRole } from '../composables/useRole.js'
+import { exportExcel, exportPDF } from '../composables/useExport.js'
 import { useAuth } from '../composables/useAuth.js'
 import {
   useAsociados, initialsOf,
@@ -731,15 +719,11 @@ import {
 import { isSupabaseConfigured } from '../lib/supabase.js'
 import DatePicker from '../components/DatePicker.vue'
 
-const { isAdmin, isAsociado, isConsejo } = useRole()
 const { cooperativaId } = useAuth()
 const {
   list, getById, create, update, setBeneficiarios,
   getAsambleasAsistidas, getComitesIntegrados,
 } = useAsociados()
-
-const JUAN_ID = 1
-const ROBERTO_ID = 3
 
 /* ── Helpers ───────────────────────────── */
 function fmt(n) {
@@ -749,15 +733,6 @@ function fmt(n) {
 /* ── Estado ────────────────────────────── */
 const selectedAsociado = ref(null)
 const loadError = ref(null)
-
-watch(isAsociado, (val) => {
-  if (isSupabaseConfigured()) return
-  selectedAsociado.value = val ? (asociados.value.find(a => a.id === JUAN_ID) ?? null) : null
-})
-watch(isConsejo, (val) => {
-  if (isSupabaseConfigured()) return
-  selectedAsociado.value = val ? (asociados.value.find(a => a.id === ROBERTO_ID) ?? null) : null
-})
 
 // Al seleccionar un asociado con datos reales, completar la pestaña de
 // Participacion (se deriva de Asambleas/Votaciones/Comites, no viene en list())
@@ -802,173 +777,7 @@ const docCategorias = [
   { key: 'Consentimientos', label: 'Consentimientos' },
 ]
 
-/* ── Mock data (fallback modo demo) ─────── */
-const DEMO_ASOCIADOS = [
-  {
-    id: 1, name: 'Juan Pérez Mora', initials: 'JP', color: '#133C65',
-    cedula: '1-0234-0567', numAsociado: 'A-001', categoria: 'Activo',
-    capitalSocial: 450000, aporteMensual: 15000, aporteBadge: 'green',
-    fechaIngreso: '02/01/2015', status: 'green', statusLabel: 'Activo',
-    fechaNac: '15/03/1980', genero: 'Masculino', estadoCivil: 'Casado', nacionalidad: 'Costarricense',
-    telPrincipal: '8888-1234', telSecundario: '2222-5678', email: 'juan.perez@correo.com',
-    direccion: 'San José, Mata Redonda, 200m norte del parque',
-    beneficiarios: [
-      { nombre: 'María Pérez', relacion: 'Esposa', porcentaje: 60 },
-      { nombre: 'Carlos Pérez', relacion: 'Hijo', porcentaje: 40 },
-    ],
-    solicitudes: [
-      { tipo: 'Afiliación', desc: 'Solicitud inicial de afiliación', fecha: '02/01/2015', responsable: 'Admin RRHH', estado: 'Aprobada', estadoClass: 'green' },
-      { tipo: 'Actualización', desc: 'Cambio de dirección', fecha: '10/06/2023', responsable: 'Admin RRHH', estado: 'Aprobada', estadoClass: 'green' },
-    ],
-    aportes: [
-      { fecha: '01/06/2026', tipo: 'Ordinario', monto: 15000, estado: 'Pagado', estadoClass: 'green' },
-      { fecha: '01/05/2026', tipo: 'Ordinario', monto: 15000, estado: 'Pagado', estadoClass: 'green' },
-      { fecha: '15/03/2026', tipo: 'Extraordinario', monto: 50000, desc: 'Capitalización especial', estado: 'Pagado', estadoClass: 'green' },
-      { fecha: '01/04/2026', tipo: 'Ordinario', monto: 15000, estado: 'Pagado', estadoClass: 'green' },
-    ],
-    beneficiosHist: [
-      { tipo: 'Beca', beneficiario: 'Carlos Pérez', monto: 50000, periodo: '2025', estado: 'Activa', estadoClass: 'green' },
-      { tipo: 'Auxilio', beneficiario: 'Juan Pérez Mora', monto: 30000, periodo: '2024', estado: 'Finalizado', estadoClass: 'gray' },
-    ],
-    documentos: [
-      { nombre: 'Contrato de afiliación 2015', categoria: 'Contratos', fecha: '02/01/2015', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-      { nombre: 'Adenda 2023', categoria: 'Contratos', fecha: '10/06/2023', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-      { nombre: 'Formulario actualización datos', categoria: 'Formularios', fecha: '10/06/2023', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-      { nombre: 'Consentimiento tratamiento datos', categoria: 'Consentimientos', fecha: '02/01/2015', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-    ],
-    comunicaciones: [
-      { tipo: 'Correo', asunto: 'Bienvenida a CoopeSaaS', fecha: '02/01/2015', leido: true },
-      { tipo: 'Comunicado', asunto: 'Convocatoria Asamblea Ordinaria 2026', fecha: '05/06/2026', leido: true },
-      { tipo: 'SMS', asunto: 'Confirmación de aporte mayo 2026', fecha: '01/05/2026', leido: true },
-      { tipo: 'Notificación', asunto: 'Beca aprobada para Carlos Pérez', fecha: '01/03/2025', leido: false },
-    ],
-    asambleasAsistidas: [
-      { nombre: 'Asamblea Ordinaria 2025', tipo: 'Ordinaria', fecha: '22/06/2025', voto: true },
-      { nombre: 'Asamblea Extraordinaria 2024', tipo: 'Extraordinaria', fecha: '14/11/2024', voto: true },
-      { nombre: 'Asamblea Ordinaria 2024', tipo: 'Ordinaria', fecha: '18/06/2024', voto: false },
-    ],
-    comitesIntegrados: [
-      { comite: 'Comité de Educación y Bienestar Social', rol: 'Vocal', desde: 'Ene 2023', hasta: 'Presente' },
-    ],
-    representados: [
-      { nombre: 'Roberto Ureña',  desde: 'Mar 2024' },
-      { nombre: 'Ernesto Vega',   desde: 'Jun 2024' },
-    ],
-  },
-  {
-    id: 2, name: 'Laura Soto Jiménez', initials: 'LS', color: '#1A9152',
-    cedula: '2-0456-0789', numAsociado: 'A-002', categoria: 'Activo',
-    capitalSocial: 620000, aporteMensual: 20000, aporteBadge: 'green',
-    fechaIngreso: '14/06/2017', status: 'green', statusLabel: 'Activo',
-    fechaNac: '22/07/1985', genero: 'Femenino', estadoCivil: 'Soltera', nacionalidad: 'Costarricense',
-    telPrincipal: '7777-4321', telSecundario: '', email: 'laura.soto@correo.com',
-    direccion: 'Heredia, Barva, frente al parque',
-    beneficiarios: [{ nombre: 'Mariana Soto', relacion: 'Hija', porcentaje: 100 }],
-    solicitudes: [{ tipo: 'Afiliación', desc: 'Solicitud inicial', fecha: '14/06/2017', responsable: 'Admin RRHH', estado: 'Aprobada', estadoClass: 'green' }],
-    aportes: [
-      { fecha: '01/06/2026', tipo: 'Ordinario', monto: 20000, estado: 'Pagado', estadoClass: 'green' },
-      { fecha: '01/05/2026', tipo: 'Ordinario', monto: 20000, estado: 'Pagado', estadoClass: 'green' },
-    ],
-    beneficiosHist: [],
-    documentos: [{ nombre: 'Contrato de afiliación 2017', categoria: 'Contratos', fecha: '14/06/2017', vencimiento: null, estado: 'Vigente', estadoClass: 'green' }],
-    comunicaciones: [{ tipo: 'Comunicado', asunto: 'Convocatoria Asamblea Ordinaria 2026', fecha: '05/06/2026', leido: true }],
-    asambleasAsistidas: [{ nombre: 'Asamblea Ordinaria 2025', tipo: 'Ordinaria', fecha: '22/06/2025', voto: true }],
-    comitesIntegrados: [{ comite: 'Comité de Vigilancia', rol: 'Secretaria', desde: 'Jun 2022', hasta: 'Presente' }],
-    representados: [],
-  },
-  {
-    id: 3, name: 'Roberto Ureña', initials: 'RU', color: '#C47F0C',
-    cedula: '3-0123-0456', numAsociado: 'A-003', categoria: 'Activo',
-    capitalSocial: 0, aporteMensual: 10000, aporteBadge: 'red',
-    fechaIngreso: '07/03/2019', status: 'yellow', statusLabel: 'Pendiente',
-    fechaNac: '10/12/1990', genero: 'Masculino', estadoCivil: 'Soltero', nacionalidad: 'Costarricense',
-    telPrincipal: '6666-0987', telSecundario: '', email: 'r.urena@correo.com',
-    direccion: 'Alajuela, San Carlos',
-    beneficiarios: [],
-    solicitudes: [
-      { tipo: 'Afiliación', desc: 'Solicitud inicial de afiliación', fecha: '07/03/2019', responsable: 'Admin RRHH', estado: 'Pendiente', estadoClass: 'yellow' },
-    ],
-    aportes: [],
-    beneficiosHist: [],
-    documentos: [{ nombre: 'Formulario de solicitud', categoria: 'Formularios', fecha: '07/03/2019', vencimiento: null, estado: 'Pendiente', estadoClass: 'yellow' }],
-    comunicaciones: [],
-    asambleasAsistidas: [],
-    comitesIntegrados: [],
-    representados: [],
-  },
-  {
-    id: 4, name: 'Carmen Fallas', initials: 'CF', color: '#7B3FA0',
-    cedula: '1-0678-0901', numAsociado: 'A-004', categoria: 'Honorario',
-    capitalSocial: 980000, aporteMensual: 25000, aporteBadge: 'green',
-    fechaIngreso: '22/11/2016', status: 'green', statusLabel: 'Activo',
-    fechaNac: '05/04/1972', genero: 'Femenino', estadoCivil: 'Casada', nacionalidad: 'Costarricense',
-    telPrincipal: '8800-1111', telSecundario: '2244-3322', email: 'carmen.fallas@correo.com',
-    direccion: 'San José, Escazú, residencial Los Pinos',
-    beneficiarios: [
-      { nombre: 'Pedro Fallas', relacion: 'Esposo', porcentaje: 50 },
-      { nombre: 'Ana Fallas', relacion: 'Hija', porcentaje: 50 },
-    ],
-    solicitudes: [
-      { tipo: 'Afiliación', desc: 'Solicitud inicial', fecha: '22/11/2016', responsable: 'Admin RRHH', estado: 'Aprobada', estadoClass: 'green' },
-      { tipo: 'Categoría', desc: 'Cambio a categoría Honorario', fecha: '01/01/2022', responsable: 'Junta Directiva', estado: 'Aprobada', estadoClass: 'green' },
-    ],
-    aportes: [
-      { fecha: '01/06/2026', tipo: 'Ordinario', monto: 25000, estado: 'Pagado', estadoClass: 'green' },
-      { fecha: '01/05/2026', tipo: 'Ordinario', monto: 25000, estado: 'Pagado', estadoClass: 'green' },
-      { fecha: '10/01/2026', tipo: 'Extraordinario', monto: 85000, desc: 'Aporte voluntario', estado: 'Pagado', estadoClass: 'green' },
-    ],
-    beneficiosHist: [
-      { tipo: 'Subsidio', beneficiario: 'Carmen Fallas', monto: 75000, periodo: '2023', estado: 'Finalizado', estadoClass: 'gray' },
-      { tipo: 'Programa', beneficiario: 'Carmen Fallas', monto: 0, periodo: '2024', estado: 'Activa', estadoClass: 'green' },
-    ],
-    documentos: [
-      { nombre: 'Contrato original 2016', categoria: 'Contratos', fecha: '22/11/2016', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-      { nombre: 'Acuerdo categoría honorario', categoria: 'Contratos', fecha: '01/01/2022', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-      { nombre: 'Consentimiento datos', categoria: 'Consentimientos', fecha: '22/11/2016', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-    ],
-    comunicaciones: [
-      { tipo: 'Correo', asunto: 'Bienvenida a CoopeSaaS', fecha: '22/11/2016', leido: true },
-      { tipo: 'Comunicado', asunto: 'Convocatoria Asamblea 2026', fecha: '05/06/2026', leido: false },
-    ],
-    asambleasAsistidas: [
-      { nombre: 'Asamblea Ordinaria 2025', tipo: 'Ordinaria', fecha: '22/06/2025', voto: true },
-      { nombre: 'Asamblea Extraordinaria 2024', tipo: 'Extraordinaria', fecha: '14/11/2024', voto: true },
-    ],
-    comitesIntegrados: [
-      { comite: 'Consejo de Administración', rol: 'Presidente', desde: 'Jun 2020', hasta: 'Presente' },
-    ],
-    representados: [
-      { nombre: 'Laura Soto Jiménez', desde: 'Abr 2023' },
-    ],
-  },
-  {
-    id: 5, name: 'Ernesto Vega', initials: 'EV', color: '#C0392B',
-    cedula: '4-0234-0567', numAsociado: 'A-005', categoria: 'Activo',
-    capitalSocial: 180000, aporteMensual: 0, aporteBadge: 'red',
-    fechaIngreso: '01/08/2020', status: 'gray', statusLabel: 'Inactivo',
-    fechaNac: '30/09/1978', genero: 'Masculino', estadoCivil: 'Divorciado', nacionalidad: 'Costarricense',
-    telPrincipal: '8855-6677', telSecundario: '', email: 'e.vega@correo.com',
-    direccion: 'Cartago, Paraíso',
-    beneficiarios: [],
-    solicitudes: [
-      { tipo: 'Afiliación', desc: 'Solicitud inicial', fecha: '01/08/2020', responsable: 'Admin RRHH', estado: 'Aprobada', estadoClass: 'green' },
-      { tipo: 'Retiro', desc: 'Solicitud de retiro voluntario', fecha: '15/01/2026', responsable: 'Admin RRHH', estado: 'Aprobada', estadoClass: 'green' },
-    ],
-    aportes: [
-      { fecha: '01/12/2025', tipo: 'Ordinario', monto: 0, estado: 'Pendiente', estadoClass: 'yellow' },
-    ],
-    beneficiosHist: [],
-    documentos: [
-      { nombre: 'Contrato de afiliación 2020', categoria: 'Contratos', fecha: '01/08/2020', vencimiento: null, estado: 'Vigente', estadoClass: 'green' },
-    ],
-    comunicaciones: [{ tipo: 'Correo', asunto: 'Confirmación de retiro', fecha: '15/01/2026', leido: true }],
-    asambleasAsistidas: [{ nombre: 'Asamblea Ordinaria 2024', tipo: 'Ordinaria', fecha: '18/06/2024', voto: false }],
-    comitesIntegrados: [],
-    representados: [],
-  },
-]
-
-const asociados = ref(isSupabaseConfigured() ? [] : DEMO_ASOCIADOS)
+const asociados = ref([])
 
 async function loadAsociados() {
   if (!isSupabaseConfigured()) return
@@ -978,15 +787,6 @@ async function loadAsociados() {
 }
 
 onMounted(loadAsociados)
-
-// Inicialización sincrónica para roles con vista limitada (solo aplica en modo demo)
-if (!isSupabaseConfigured()) {
-  if (isAsociado.value) {
-    selectedAsociado.value = asociados.value.find(a => a.id === JUAN_ID) ?? null
-  } else if (isConsejo.value) {
-    selectedAsociado.value = asociados.value.find(a => a.id === ROBERTO_ID) ?? null
-  }
-}
 
 /* ── Resumen (tarjetas superiores) ───────── */
 const summary = computed(() => {
