@@ -4,7 +4,7 @@
 
     <div class="feriado-add">
       <input v-model="nuevoNombre" type="text" placeholder="Nombre del feriado..." class="feriado-input-nombre" />
-      <input v-model="nuevaFecha" type="date" class="feriado-input-fecha" />
+      <DatePicker v-model="nuevaFecha" class="feriado-input-fecha" placeholder="Fecha" />
       <label class="feriado-recurrente">
         <input v-model="nuevoRecurrente" type="checkbox" /> Se repite cada año
       </label>
@@ -39,6 +39,7 @@
 import { ref, onMounted } from 'vue'
 import { useFeriados } from '../composables/useFeriados.js'
 import { useAuth } from '../composables/useAuth.js'
+import DatePicker from './DatePicker.vue'
 
 const { listFeriados, crearFeriado, toggleFeriadoActivo, eliminarFeriado } = useFeriados()
 const { cooperativaId } = useAuth()
@@ -109,13 +110,12 @@ onMounted(cargar)
 .feriado-add { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .feriado-input-nombre { flex: 1 1 200px; }
 .feriado-input-fecha { flex: 0 0 150px; }
-.feriado-add input[type="text"],
-.feriado-add input[type="date"] {
+.feriado-add input[type="text"] {
   height: 32px; padding: 0 10px;
   border: 1.5px solid #D4E4F4; border-radius: 6px;
   font-size: 12.5px; font-family: inherit; background: #F8FAFC; color: #1A2B3C; outline: none;
 }
-.dark .feriado-add input[type="text"], .dark .feriado-add input[type="date"] { background: #162033; border-color: #3D5069; color: #E2E8F0; }
+.dark .feriado-add input[type="text"] { background: #162033; border-color: #3D5069; color: #E2E8F0; }
 .feriado-add input:focus { border-color: #133C65; background: white; }
 
 .feriado-recurrente { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #4A6070; white-space: nowrap; }

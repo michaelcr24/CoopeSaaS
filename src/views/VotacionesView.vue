@@ -425,11 +425,11 @@
             </div>
             <div class="acta-data-item">
               <span class="acta-label">Hora inicio:</span>
-              <input v-model="actaHoraInicio" type="time" class="acta-input" />
+              <TimePicker v-model="actaHoraInicio" style="flex:1" />
             </div>
             <div class="acta-data-item">
               <span class="acta-label">Hora fin:</span>
-              <input v-model="actaHoraFin" type="time" class="acta-input" />
+              <TimePicker v-model="actaHoraFin" style="flex:1" />
             </div>
             <div class="acta-data-item">
               <span class="acta-label">Nº de acta:</span>
@@ -541,6 +541,7 @@ import { useAsociados, initialsOf, colorFor } from '../composables/useAsociados.
 import { useAsambleas } from '../composables/useAsambleas.js'
 import { useVotaciones } from '../composables/useVotaciones.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
+import TimePicker from '../components/TimePicker.vue'
 
 const route = useRoute()
 const { currentUser } = useAuth()
